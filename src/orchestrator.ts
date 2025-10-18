@@ -6,7 +6,7 @@
  */
 
 import { Candle, AgentContext } from './types.js';
-import { IndicatorAgent, PatternAgent, TrendAgent, RiskAgent } from './agents/index.js';
+import { runGraphPipeline } from './graph/analysisGraph.js';
 import MarketDataService from './services/marketData.js';
 
 const marketDataService = new MarketDataService();
@@ -17,18 +17,18 @@ const marketDataService = new MarketDataService();
  * @returns Analysis context and narrative
  */
 export async function runPipeline(candles: Candle[]) {
-  const ctx: AgentContext = { candles };
+  // Use the LangGraph-style pipeline by default
+  return runGraphPipeline(candles);
 
-  // Run all agents sequentially, building context
-  ctx.indicator = await IndicatorAgent(ctx);
-  ctx.pattern   = await PatternAgent(ctx);
-  ctx.trend     = await TrendAgent(ctx);
-  ctx.risk      = await RiskAgent(ctx);
-
-  // Generate human-readable narrative
-  const narrative = generateNarrative(ctx);
-
-  return { ctx, narrative };
+  // Legacy sequential path retained below (unreachable unless refactored)
+  // const ctx: AgentContext = { candles };
+  // ctx.indicator = await IndicatorAgent(ctx);
+  // ctx.pattern   = await PatternAgent(ctx);
+  // ctx.trend     = await TrendAgent(ctx);
+  // ctx.risk      = await RiskAgent(ctx);
+  // const narrative = generateNarrative(ctx);
+  // const { visuals, signals } = computeVisualsAndSignals(candles);
+  // return { ctx, narrative, visuals, signals };
 }
 
 /**
@@ -146,7 +146,7 @@ export async function runRealTimeAnalysis(
     }
 
     // Run the complete analysis pipeline
-    const { ctx, narrative } = await runPipeline(candles);
+  const { ctx, narrative, visuals, signals } = await runPipeline(candles) as any;
     
     // Get market summary
     const marketSummary = marketDataService.getMarketSummary(candles);
@@ -163,6 +163,8 @@ export async function runRealTimeAnalysis(
       marketSummary,
       analysis: ctx,
       narrative,
+      visuals,
+      signals,
       recentData: formattedData,
       dataPoints: candles.length
     };

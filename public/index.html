@@ -113,6 +113,31 @@
         font-size: 0.9rem;
         line-height: 1.6;
       }
+      .ai-summary {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f6f7ff;
+        border: 1px dashed #c7cffc;
+        border-radius: 8px;
+        color: #333b66;
+        font-size: 0.85rem;
+      }
+      .mini-canvas {
+        width: 100%;
+        height: 120px;
+        background: #fafbff;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        margin-top: 10px;
+      }
+      .mini-canvas {
+        width: 100%;
+        height: 120px;
+        background: #fafbff;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        margin-top: 10px;
+      }
 
       .metric {
         display: flex;
@@ -158,6 +183,27 @@
         color: #2c3e50;
         margin-bottom: 15px;
         font-size: 1.3rem;
+      }
+
+      /* Signals Graph */
+      .graph-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      .graph-title {
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 10px;
+      }
+      #signalsCanvas {
+        width: 100%;
+        height: 240px;
+        background: #fafbff;
+        border: 1px solid #eee;
+        border-radius: 10px;
       }
 
       .narrative-content {
@@ -499,6 +545,13 @@
       <div id="error" class="error" style="display: none"></div>
 
       <div id="dashboard" class="dashboard" style="display: none">
+        <!-- Signals Graph (Price + EMAs + Buy/Sell markers) -->
+        <div class="agent-card graph-card" style="grid-column: 1 / -1">
+          <div class="graph-title">
+            📈 Signals Graph (Price, EMAs, Buy/Sell)
+          </div>
+          <canvas id="signalsCanvas"></canvas>
+        </div>
         <!-- Indicator Agent -->
         <div class="agent-card">
           <div class="agent-header">
@@ -527,6 +580,8 @@
               <span class="metric-value" id="confidence">-</span>
             </div>
           </div>
+          <div id="indicator-ai" class="ai-summary" style="display: none"></div>
+          <canvas id="miniRSI" class="mini-canvas"></canvas>
         </div>
 
         <!-- Pattern Agent -->
@@ -545,6 +600,8 @@
               <span class="metric-value" id="pattern-strength">-</span>
             </div>
           </div>
+          <div id="pattern-ai" class="ai-summary" style="display: none"></div>
+          <canvas id="miniPattern" class="mini-canvas"></canvas>
         </div>
 
         <!-- Trend Agent -->
@@ -575,6 +632,8 @@
               <span class="metric-value" id="trend-strength">-</span>
             </div>
           </div>
+          <div id="trend-ai" class="ai-summary" style="display: none"></div>
+          <canvas id="miniEMAs" class="mini-canvas"></canvas>
         </div>
 
         <!-- Risk Agent -->
@@ -710,7 +769,212 @@
         document.getElementById("narrative-content").textContent =
           data.narrative;
 
+        // Show AI summaries if present
+        try {
+          const indAI = document.getElementById("indicator-ai");
+          const patAI = document.getElementById("pattern-ai");
+          const trAI = document.getElementById("trend-ai");
+          const indSum = data.data.indicator?.aiSummary;
+          const patSum = data.data.pattern?.aiSummary;
+          const trSum = data.data.trend?.aiSummary;
+          if (indSum) {
+            indAI.style.display = "block";
+            indAI.textContent = indSum;
+          } else {
+            indAI.style.display = "none";
+            indAI.textContent = "";
+          }
+          if (patSum) {
+            patAI.style.display = "block";
+            patAI.textContent = patSum;
+          } else {
+            patAI.style.display = "none";
+            patAI.textContent = "";
+          }
+          if (trSum) {
+            trAI.style.display = "block";
+            trAI.textContent = trSum;
+          } else {
+            trAI.style.display = "none";
+            trAI.textContent = "";
+          }
+        } catch {}
+
+        // Ensure dashboard visible, then render mini charts on next frame
         showLoading(false);
+        if (data?.data?.visuals) {
+          requestAnimationFrame(() => renderMiniCharts(data.data.visuals));
+        }
+      }
+
+      function renderMiniCharts(visuals) {
+        // Mini RSI
+        try {
+          const canvas = document.getElementById("miniRSI");
+          const ctx = canvas.getContext("2d");
+          const dpr = window.devicePixelRatio || 1;
+          const w =
+            canvas.clientWidth ||
+            canvas.getBoundingClientRect().width ||
+            parseFloat(getComputedStyle(canvas).width) ||
+            300;
+          const h =
+            canvas.clientHeight ||
+            canvas.getBoundingClientRect().height ||
+            parseFloat(getComputedStyle(canvas).height) ||
+            120;
+          canvas.width = Math.floor(w * dpr);
+          canvas.height = Math.floor(h * dpr);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.scale(dpr, dpr);
+          ctx.clearRect(0, 0, w, h);
+          const rsi = visuals?.indicator?.rsi || [];
+          if (rsi.length > 1) {
+            const start = Math.max(0, rsi.length - 100);
+            const minV = 0,
+              maxV = 100;
+            const left = 30,
+              right = 10,
+              top = 10,
+              bottom = 10;
+            const plotW = w - left - right,
+              plotH = h - top - bottom;
+            const xAt = (i) =>
+              left +
+              ((i - start) / Math.max(1, rsi.length - start - 1)) * plotW;
+            const yAt = (v) => top + (1 - (v - minV) / (maxV - minV)) * plotH;
+            // guides
+            ctx.strokeStyle = "#eee";
+            ctx.strokeRect(left, top, plotW, plotH);
+            [30, 70, 50].forEach((level) => {
+              ctx.beginPath();
+              ctx.moveTo(left, yAt(level));
+              ctx.lineTo(left + plotW, yAt(level));
+              ctx.strokeStyle = level === 50 ? "#ddd" : "#f1f1f1";
+              ctx.stroke();
+            });
+            // rsi
+            ctx.beginPath();
+            for (let i = start; i < rsi.length; i++) {
+              const x = xAt(i),
+                y = yAt(rsi[i]);
+              i === start ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = "#4a6cf7";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+        } catch {}
+
+        // Mini Pattern (events heat)
+        try {
+          const canvas = document.getElementById("miniPattern");
+          const ctx = canvas.getContext("2d");
+          const dpr = window.devicePixelRatio || 1;
+          const w =
+            canvas.clientWidth ||
+            canvas.getBoundingClientRect().width ||
+            parseFloat(getComputedStyle(canvas).width) ||
+            300;
+          const h =
+            canvas.clientHeight ||
+            canvas.getBoundingClientRect().height ||
+            parseFloat(getComputedStyle(canvas).height) ||
+            120;
+          canvas.width = Math.floor(w * dpr);
+          canvas.height = Math.floor(h * dpr);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.scale(dpr, dpr);
+          ctx.clearRect(0, 0, w, h);
+          const events = visuals?.pattern?.events || [];
+          const times = visuals?.times || [];
+          const n = times.length;
+          if (n < 2) return;
+          const start = Math.max(0, n - 100);
+          const left = 20,
+            right = 10,
+            top = 10,
+            bottom = 10;
+          const plotW = w - left - right,
+            plotH = h - top - bottom;
+          const xAt = (i) =>
+            left + ((i - start) / Math.max(1, n - start - 1)) * plotW;
+          ctx.strokeStyle = "#eee";
+          ctx.strokeRect(left, top, plotW, plotH);
+          for (const ev of events) {
+            if (ev.index < start) continue;
+            const x = xAt(ev.index);
+            const y = top + plotH / 2;
+            ctx.beginPath();
+            ctx.fillStyle =
+              ev.pattern === "BullishEngulfing"
+                ? "#22c55e"
+                : ev.pattern === "BearishEngulfing"
+                ? "#ef4444"
+                : "#9ca3af";
+            ctx.globalAlpha = Math.max(0.2, Math.min(1, ev.strength));
+            ctx.fillRect(x - 2, y - 8, 4, 16);
+            ctx.globalAlpha = 1;
+          }
+        } catch {}
+
+        // Mini EMAs
+        try {
+          const canvas = document.getElementById("miniEMAs");
+          const ctx = canvas.getContext("2d");
+          const dpr = window.devicePixelRatio || 1;
+          const w =
+            canvas.clientWidth ||
+            canvas.getBoundingClientRect().width ||
+            parseFloat(getComputedStyle(canvas).width) ||
+            300;
+          const h =
+            canvas.clientHeight ||
+            canvas.getBoundingClientRect().height ||
+            parseFloat(getComputedStyle(canvas).height) ||
+            120;
+          canvas.width = Math.floor(w * dpr);
+          canvas.height = Math.floor(h * dpr);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.scale(dpr, dpr);
+          ctx.clearRect(0, 0, w, h);
+          const ema12 = visuals?.trend?.ema12 || [];
+          const ema26 = visuals?.trend?.ema26 || [];
+          const price = visuals?.price || [];
+          const n = price.length;
+          if (n < 2) return;
+          const start = Math.max(0, n - 150);
+          const slice = price.slice(start);
+          const minP = Math.min(...slice),
+            maxP = Math.max(...slice);
+          const left = 30,
+            right = 10,
+            top = 10,
+            bottom = 10;
+          const plotW = w - left - right,
+            plotH = h - top - bottom;
+          const xAt = (i) =>
+            left + ((i - start) / Math.max(1, n - start - 1)) * plotW;
+          const yAt = (v) =>
+            top + (1 - (v - minP) / Math.max(1e-9, maxP - minP)) * plotH;
+          ctx.strokeStyle = "#eee";
+          ctx.strokeRect(left, top, plotW, plotH);
+          const plotLine = (series, color) => {
+            ctx.beginPath();
+            for (let i = start; i < n; i++) {
+              const x = xAt(i),
+                y = yAt(series[i]);
+              if (!isFinite(y)) continue;
+              i === start ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+          };
+          plotLine(price, "#4a6cf7");
+          if (ema12.length === n) plotLine(ema12, "#22c55e");
+          if (ema26.length === n) plotLine(ema26, "#ef4444");
+        } catch {}
       }
 
       async function loadAnalysis() {
@@ -720,6 +984,7 @@
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = await response.json();
           updateDisplay(data);
+          requestAnimationFrame(() => renderSignalsGraph(data));
         } catch (error) {
           showError(`Failed to load analysis: ${error.message}`);
           showLoading(false);
@@ -733,9 +998,162 @@
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = await response.json();
           updateDisplay(data);
+          requestAnimationFrame(() => renderSignalsGraph(data));
         } catch (error) {
           showError(`Failed to generate fresh analysis: ${error.message}`);
           showLoading(false);
+        }
+      }
+
+      function renderSignalsGraph(analysis) {
+        try {
+          const visuals = analysis?.data?.visuals;
+          const signals =
+            analysis?.data?.signals || visuals?.combined?.signals || [];
+          if (!visuals || !visuals.times || !visuals.price) return;
+
+          const canvas = document.getElementById("signalsCanvas");
+          const ctx = canvas.getContext("2d");
+          let width =
+            canvas.clientWidth ||
+            canvas.getBoundingClientRect().width ||
+            parseFloat(getComputedStyle(canvas).width) ||
+            800;
+          let height =
+            canvas.clientHeight ||
+            canvas.getBoundingClientRect().height ||
+            parseFloat(getComputedStyle(canvas).height) ||
+            240;
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.max(800, Math.floor(width * dpr));
+          canvas.height = Math.floor(height * dpr);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.scale(dpr, dpr);
+          // Recompute logical size from backing size to avoid zero clears
+          width = canvas.width / dpr;
+          height = canvas.height / dpr;
+          ctx.clearRect(0, 0, width, height);
+
+          const times = visuals.times;
+          const price = visuals.price;
+          const ema12 = visuals.trend?.ema12 || [];
+          const ema26 = visuals.trend?.ema26 || [];
+
+          const n = price.length;
+          if (n < 2) return;
+          const windowSize = Math.min(150, n);
+          const start = n - windowSize;
+          const slice = price.slice(start);
+          const minP = Math.min(...slice);
+          const maxP = Math.max(...slice);
+          const left = 40,
+            right = 10,
+            top = 10,
+            bottom = 20;
+          const plotW = width - left - right;
+          const plotH = height - top - bottom;
+
+          const xAt = (i) =>
+            left + ((i - start) / Math.max(1, n - start - 1)) * plotW;
+          const yAt = (v) =>
+            top + (1 - (v - minP) / Math.max(1e-9, maxP - minP)) * plotH;
+
+          // Axes
+          ctx.strokeStyle = "#eaeaea";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(left, top, plotW, plotH);
+
+          const plotLine = (series, color) => {
+            ctx.beginPath();
+            for (let i = start; i < n; i++) {
+              const x = xAt(i);
+              const y = yAt(series[i]);
+              if (!isFinite(y)) continue;
+              i === start ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          };
+
+          // Draw series
+          plotLine(price, "#4a6cf7"); // price
+          if (ema12.length === price.length) plotLine(ema12, "#22c55e");
+          if (ema26.length === price.length) plotLine(ema26, "#ef4444");
+
+          // Draw markers and capture for tooltip
+          const points = [];
+          for (const s of signals) {
+            if (s.index < start || s.index >= n) continue;
+            const x = xAt(s.index);
+            const y = yAt(price[s.index]);
+            ctx.beginPath();
+            ctx.fillStyle = s.type === "BUY" ? "#0ea5e9" : "#f59e0b";
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            points.push({
+              x,
+              y,
+              label: `${s.type} • score ${
+                Math.round((s.score || 0) * 100) / 100
+              }\n${s.reason || ""}`,
+            });
+          }
+
+          // Tooltip hover
+          const tooltipId = "signalsTooltip";
+          let tip = document.getElementById(tooltipId);
+          if (!tip) {
+            tip = document.createElement("div");
+            tip.id = tooltipId;
+            tip.style.position = "fixed";
+            tip.style.pointerEvents = "none";
+            tip.style.zIndex = "9999";
+            tip.style.background = "rgba(0,0,0,0.75)";
+            tip.style.color = "#fff";
+            tip.style.padding = "6px 8px";
+            tip.style.borderRadius = "6px";
+            tip.style.fontSize = "12px";
+            tip.style.whiteSpace = "pre-line";
+            tip.style.display = "none";
+            document.body.appendChild(tip);
+          }
+
+          // Attach once
+          canvas._signalPoints = points;
+          if (!canvas._hoverBound) {
+            canvas.addEventListener("mousemove", (ev) => {
+              const rect = canvas.getBoundingClientRect();
+              const mx = ev.clientX - rect.left;
+              const my = ev.clientY - rect.top;
+              const thresh = 8;
+              let found = null;
+              const pts = canvas._signalPoints || [];
+              for (const p of pts) {
+                const dx = p.x - mx;
+                const dy = p.y - my;
+                if (dx * dx + dy * dy <= thresh * thresh) {
+                  found = p;
+                  break;
+                }
+              }
+              if (found) {
+                tip.textContent = found.label;
+                tip.style.left = `${ev.clientX + 10}px`;
+                tip.style.top = `${ev.clientY + 10}px`;
+                tip.style.display = "block";
+              } else {
+                tip.style.display = "none";
+              }
+            });
+            canvas.addEventListener("mouseleave", () => {
+              const t = document.getElementById(tooltipId);
+              if (t) t.style.display = "none";
+            });
+            canvas._hoverBound = true;
+          }
+        } catch (e) {
+          console.warn("Graph render skipped:", e);
         }
       }
 

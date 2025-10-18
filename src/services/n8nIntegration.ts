@@ -35,20 +35,20 @@ export default class N8NIntegrationService {
       apiKey: process.env.N8N_API_KEY
     };
     
-    this.isEnabled = Boolean(this.config.webhookUrl || this.config.apiUrl);
+  this.isEnabled = this.isValidUrl(this.config.webhookUrl) || Boolean(this.config.apiUrl);
   }
 
   /**
    * Send analysis data to N8N webhook
    */
   async sendAnalysisToN8N(analysisData: AnalysisData): Promise<any> {
-    if (!this.isEnabled || !this.config.webhookUrl) {
+    if (!this.isEnabled || !this.isValidUrl(this.config.webhookUrl)) {
       console.warn('N8N integration not configured - skipping webhook call');
       return { success: false, message: 'N8N not configured' };
     }
 
     try {
-      const response = await axios.post(this.config.webhookUrl, {
+  const response = await axios.post(this.config.webhookUrl as string, {
         type: 'analysis',
         timestamp: analysisData.timestamp,
         data: analysisData
@@ -77,13 +77,13 @@ export default class N8NIntegrationService {
    * Send notification to N8N
    */
   async sendNotification(message: string, level: string = 'info', metadata?: any): Promise<any> {
-    if (!this.isEnabled || !this.config.webhookUrl) {
+    if (!this.isEnabled || !this.isValidUrl(this.config.webhookUrl)) {
       console.warn('N8N integration not configured - skipping notification');
       return { success: false, message: 'N8N not configured' };
     }
 
     try {
-      const response = await axios.post(this.config.webhookUrl, {
+  const response = await axios.post(this.config.webhookUrl as string, {
         type: 'notification',
         message,
         level,
@@ -163,7 +163,7 @@ export default class N8NIntegrationService {
     return {
       enabled: this.isEnabled,
       configured: {
-        webhook: Boolean(this.config.webhookUrl),
+        webhook: this.isValidUrl(this.config.webhookUrl),
         api: Boolean(this.config.apiUrl && this.config.apiKey)
       },
       config: {
@@ -180,9 +180,9 @@ export default class N8NIntegrationService {
   updateWebhookUrl(url: string): boolean {
     try {
       // Basic URL validation
-      new URL(url);
-      this.config.webhookUrl = url;
-      this.isEnabled = Boolean(this.config.webhookUrl || this.config.apiUrl);
+  new URL(url);
+  this.config.webhookUrl = url;
+  this.isEnabled = this.isValidUrl(this.config.webhookUrl) || Boolean(this.config.apiUrl);
       return true;
     } catch (error) {
       console.error('Invalid webhook URL:', error);
@@ -196,13 +196,24 @@ export default class N8NIntegrationService {
   updateApiConfig(apiUrl: string, apiKey: string): boolean {
     try {
       // Basic URL validation
-      new URL(apiUrl);
-      this.config.apiUrl = apiUrl;
-      this.config.apiKey = apiKey;
-      this.isEnabled = Boolean(this.config.webhookUrl || this.config.apiUrl);
+  new URL(apiUrl);
+  this.config.apiUrl = apiUrl;
+  this.config.apiKey = apiKey;
+  this.isEnabled = this.isValidUrl(this.config.webhookUrl) || Boolean(this.config.apiUrl);
       return true;
     } catch (error) {
       console.error('Invalid API configuration:', error);
+      return false;
+    }
+  }
+
+  private isValidUrl(value?: string): boolean {
+    if (!value) return false;
+    try {
+      const u = new URL(value);
+      // Guard against placeholder text
+      return !!u.protocol && !/your[-_]?n8n|your_/i.test(value);
+    } catch {
       return false;
     }
   }
