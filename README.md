@@ -15,6 +15,13 @@ src/
 │   ├── RiskAgent.ts         # Risk management (ρ=0.0005)
 │   └── index.ts            # Agent exports
 ├── utils/
+OPENAI_API_KEY=your_openai_key_here
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here
+
+# Optional: use external agents (quantllm-agents) via HTTP
+# Enable endpoints /api/external/health and /api/external/run
+EXTERNAL_AGENTS=1
+EXTERNAL_AGENT_URL=http://localhost:1234
 │   ├── technical.ts        # Technical analysis utilities
 │   └── synthetic.ts        # Data generation
 ├── types.ts               # Shared type definitions

@@ -13,6 +13,7 @@ import { dirname, join } from 'path';
 import { runPipeline, runAnalysis, runRealTimeAnalysis, getMarketData, searchMarketSymbols, getPopularSymbols, validateSymbol } from './src/orchestrator.js';
 import { makeSyntheticSeries } from './src/utils/synthetic.js';
 import { runIndicatorAgent, runPatternAgent, runTrendAgent, runRiskAgent } from './src/agents/index.js';
+import { externalHealth, externalRun, isExternalEnabled } from './src/services/externalAgents.js';
 // Chat feature removed for presentation-only build
 
 const __filename = fileURLToPath(import.meta.url);
@@ -134,6 +135,21 @@ app.get('/api/agents/:agent', async (req, res) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: `Failed to run ${req.params.agent} agent`, details: errorMessage });
   }
+});
+
+// External agents (Derik's) test endpoints
+app.get('/api/external/health', async (req, res) => {
+  if (!isExternalEnabled()) return res.status(404).json({ error: 'External agents disabled' });
+  const result = await externalHealth();
+  if (result.ok) return res.json(result.data);
+  return res.status(502).json({ error: result.error });
+});
+
+app.get('/api/external/run', async (req, res) => {
+  if (!isExternalEnabled()) return res.status(404).json({ error: 'External agents disabled' });
+  const result = await externalRun();
+  if (result.ok) return res.json(result.data);
+  return res.status(502).json({ error: result.error });
 });
 
 app.get('/api/health', (req, res) => {
