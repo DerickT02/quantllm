@@ -274,211 +274,30 @@
           grid-template-columns: 1fr;
         }
 
-        .chat-container {
-          margin-bottom: 20px;
-        }
+        /* chat removed */
       }
 
-      /* Chat Interface Styles */
-      .chat-container {
-        background: rgba(255, 255, 255, 0.98);
-        border-radius: 15px;
-        padding: 25px;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-        backdrop-filter: blur(15px);
-        border: 2px solid rgba(102, 126, 234, 0.3);
-        margin-bottom: 35px;
-        max-height: 500px;
-        display: flex;
-        flex-direction: column;
-        animation: slideInFromTop 0.5s ease-out;
-        position: relative;
-      }
-
-      @keyframes slideInFromTop {
-        from {
-          opacity: 0;
-          transform: translateY(-20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .chat-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #eee;
-      }
-
-      .chat-title {
-        font-size: 1.3rem;
-        font-weight: bold;
-        color: #2c3e50;
-        display: flex;
-        align-items: center;
+      /* Presentation: Asset selector */
+      .asset-toggle {
+        display: inline-flex;
         gap: 8px;
       }
-
-      .ai-status {
-        font-size: 0.8rem;
-        padding: 2px 6px;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid #ddd;
-        cursor: help;
-        transition: all 0.3s ease;
-      }
-
-      .ai-status.enabled {
-        background: linear-gradient(45deg, #4caf50, #45a049);
+      .asset-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         color: white;
-        border-color: #4caf50;
-      }
-
-      .ai-status:hover {
-        transform: scale(1.05);
-      }
-
-      .chat-toggle {
-        background: #667eea;
-        color: white;
-        border: none;
-        padding: 8px 16px;
+        padding: 10px 18px;
         border-radius: 20px;
         cursor: pointer;
-        font-size: 0.9rem;
+        font-weight: 600;
       }
-
-      .chat-messages {
-        flex: 1;
-        overflow-y: auto;
-        max-height: 400px;
-        margin-bottom: 15px;
-        padding: 10px;
-        background: #f8f9fa;
-        border-radius: 10px;
-      }
-
-      .message {
-        margin-bottom: 15px;
-        animation: fadeIn 0.3s ease-in;
-      }
-
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .message-user {
-        text-align: right;
-      }
-
-      .message-assistant {
-        text-align: left;
-      }
-
-      .message-content {
-        display: inline-block;
-        max-width: 80%;
-        padding: 12px 16px;
-        border-radius: 18px;
-        line-height: 1.4;
-        font-size: 0.9rem;
-      }
-
-      .message-user .message-content {
-        background: #667eea;
-        color: white;
-        border-bottom-right-radius: 5px;
-      }
-
-      .message-assistant .message-content {
+      .asset-btn.active {
         background: white;
-        color: #333;
-        border: 1px solid #ddd;
-        border-bottom-left-radius: 5px;
-        white-space: pre-line;
+        color: #4a5568;
+        border-color: white;
       }
 
-      .message-timestamp {
-        font-size: 0.7rem;
-        color: #888;
-        margin-top: 4px;
-      }
-
-      .chat-input-container {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-
-      .chat-input {
-        flex: 1;
-        padding: 12px 16px;
-        border: 2px solid #ddd;
-        border-radius: 25px;
-        font-size: 1rem;
-        outline: none;
-        transition: border-color 0.3s ease;
-      }
-
-      .chat-input:focus {
-        border-color: #667eea;
-      }
-
-      .chat-send {
-        background: #667eea;
-        color: white;
-        border: none;
-        padding: 12px 20px;
-        border-radius: 25px;
-        cursor: pointer;
-        font-size: 1rem;
-        transition: background 0.3s ease;
-      }
-
-      .chat-send:hover {
-        background: #5a67d8;
-      }
-
-      .chat-send:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-      }
-
-      .category-buttons {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 10px 0;
-      }
-
-      .category-btn {
-        background: rgba(102, 126, 234, 0.1);
-        border: 1px solid #667eea;
-        color: #667eea;
-        padding: 6px 12px;
-        border-radius: 15px;
-        cursor: pointer;
-        font-size: 0.8rem;
-        transition: all 0.3s ease;
-      }
-
-      .category-btn:hover {
-        background: #667eea;
-        color: white;
-      }
+      /* chat styles removed */
     </style>
   </head>
   <body>
@@ -489,9 +308,19 @@
       </div>
 
       <div class="controls">
-        <button class="btn" onclick="loadAnalysis()">
-          📊 Refresh Analysis
-        </button>
+        <div class="asset-toggle" role="group" aria-label="Asset selector">
+          <button
+            class="asset-btn active"
+            id="btnBTC"
+            onclick="selectAsset('BTC')"
+          >
+            BTC
+          </button>
+          <button class="asset-btn" id="btnETH" onclick="selectAsset('ETH')">
+            ETH
+          </button>
+        </div>
+        <button class="btn" onclick="loadAnalysis()">� Refresh Analysis</button>
         <button class="btn" onclick="loadFreshAnalysis()">
           🔄 Generate New
         </button>
@@ -501,38 +330,6 @@
         <a href="/market-data.html" class="btn" style="text-decoration: none">
           📈 OHLCV Data
         </a>
-      </div>
-
-      <!-- Chat Interface - Now visible by default -->
-      <div id="chat-container" class="chat-container">
-        <div class="chat-header">
-          <div class="chat-title">
-            🤖 QuantLLM Trading Assistant
-            <span id="ai-status" class="ai-status">💡</span>
-          </div>
-          <button class="chat-toggle" onclick="clearChat()">🔄 New Chat</button>
-        </div>
-
-        <div id="chat-messages" class="chat-messages">
-          <!-- Messages will be populated here -->
-        </div>
-
-        <div class="category-buttons" id="category-buttons">
-          <!-- Category quick buttons will be populated here -->
-        </div>
-
-        <div class="chat-input-container">
-          <input
-            type="text"
-            id="chat-input"
-            class="chat-input"
-            placeholder="🎯 Choose a category: crypto, forex, stocks, commodities, or indices..."
-            onkeypress="handleChatKeyPress(event)"
-          />
-          <button id="chat-send" class="chat-send" onclick="sendMessage()">
-            Send
-          </button>
-        </div>
       </div>
 
       <div id="timestamp" class="timestamp"></div>
@@ -980,9 +777,12 @@
       async function loadAnalysis() {
         showLoading(true);
         try {
-          const response = await fetch("/api/analysis");
+          const response = await fetch(
+            `/api/market/analysis/${selectedAsset}?interval=daily&periods=120`
+          );
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json();
+          const market = await response.json();
+          const data = mapMarketAnalysisToDashboardPayload(market);
           updateDisplay(data);
           requestAnimationFrame(() => renderSignalsGraph(data));
         } catch (error) {
@@ -994,9 +794,12 @@
       async function loadFreshAnalysis() {
         showLoading(true);
         try {
-          const response = await fetch("/api/analysis/fresh");
+          const response = await fetch(
+            `/api/market/analysis/${selectedAsset}?interval=daily&periods=120`
+          );
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json();
+          const market = await response.json();
+          const data = mapMarketAnalysisToDashboardPayload(market);
           updateDisplay(data);
           requestAnimationFrame(() => renderSignalsGraph(data));
         } catch (error) {
@@ -1172,210 +975,37 @@
         }
       }
 
-      // Chat functionality
-      let isChatVisible = true; // Chat is now always visible
-      let isSending = false;
-
-      function toggleChat() {
-        // Chat is always visible now, but keep function for potential future use
-        // Focus the input when called
-        document.getElementById("chat-input").focus();
-      }
-
-      async function loadChatMessages() {
-        try {
-          const response = await fetch("/api/chat/messages");
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json();
-          displayMessages(data.messages);
-        } catch (error) {
-          console.error("Failed to load chat messages:", error);
+      // Presentation-only: BTC/ETH selector and fetchers
+      let selectedAsset = "BTC";
+      function selectAsset(asset) {
+        selectedAsset = asset;
+        const btnBTC = document.getElementById("btnBTC");
+        const btnETH = document.getElementById("btnETH");
+        if (btnBTC && btnETH) {
+          btnBTC.classList.toggle("active", asset === "BTC");
+          btnETH.classList.toggle("active", asset === "ETH");
         }
+        loadAnalysis();
       }
 
-      async function loadCategories() {
-        try {
-          const response = await fetch("/api/chat/categories");
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json();
-          displayCategoryButtons(data.categories);
-        } catch (error) {
-          console.error("Failed to load categories:", error);
-        }
+      function mapMarketAnalysisToDashboardPayload(m) {
+        return {
+          timestamp: m.timestamp,
+          data: {
+            indicator: m.analysis?.indicator || {},
+            pattern: m.analysis?.pattern || {},
+            trend: m.analysis?.trend || {},
+            risk: m.analysis?.risk || {},
+            visuals: m.visuals,
+            signals: m.signals,
+          },
+          narrative: m.narrative || "",
+        };
       }
 
-      function displayMessages(messages) {
-        const messagesContainer = document.getElementById("chat-messages");
-        messagesContainer.innerHTML = "";
-
-        messages.forEach((message) => {
-          const messageDiv = document.createElement("div");
-          messageDiv.className = `message message-${message.role}`;
-
-          const contentDiv = document.createElement("div");
-          contentDiv.className = "message-content";
-          contentDiv.textContent = message.content;
-
-          const timestampDiv = document.createElement("div");
-          timestampDiv.className = "message-timestamp";
-          timestampDiv.textContent = new Date(
-            message.timestamp
-          ).toLocaleTimeString();
-
-          messageDiv.appendChild(contentDiv);
-          messageDiv.appendChild(timestampDiv);
-          messagesContainer.appendChild(messageDiv);
-        });
-
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      }
-
-      function displayCategoryButtons(categories) {
-        const container = document.getElementById("category-buttons");
-        container.innerHTML = "";
-
-        categories.forEach((category) => {
-          const button = document.createElement("button");
-          button.className = "category-btn";
-          button.textContent = `${category.icon} ${category.name}`;
-          button.onclick = () => sendCategoryMessage(category.name);
-          container.appendChild(button);
-        });
-      }
-
-      async function sendMessage() {
-        const input = document.getElementById("chat-input");
-        const message = input.value.trim();
-
-        if (!message || isSending) return;
-
-        isSending = true;
-        const sendButton = document.getElementById("chat-send");
-        sendButton.disabled = true;
-        sendButton.textContent = "Sending...";
-
-        try {
-          const response = await fetch("/api/chat/message", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ message }),
-          });
-
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json();
-
-          displayMessages(data.messages);
-          input.value = "";
-
-          // Update placeholder based on the last assistant message
-          updateInputPlaceholder(data.response.content);
-
-          // If the response includes analysis, update the dashboard
-          if (data.response.analysis) {
-            updateDisplay({
-              timestamp: data.timestamp,
-              data: data.response.analysis.data,
-              narrative: data.response.analysis.narrative,
-            });
-          }
-        } catch (error) {
-          showError(`Chat error: ${error.message}`);
-        } finally {
-          isSending = false;
-          sendButton.disabled = false;
-          sendButton.textContent = "Send";
-          input.focus(); // Keep focus on input for better UX
-        }
-      }
-
-      function updateInputPlaceholder(lastAssistantMessage) {
-        const input = document.getElementById("chat-input");
-
-        if (
-          lastAssistantMessage.includes(
-            "Which specific asset would you like me to analyze"
-          )
-        ) {
-          input.placeholder =
-            "💎 Choose an asset (type number or name, e.g., 'BTC/USDT' or '1')...";
-        } else if (
-          lastAssistantMessage.includes("Available") &&
-          lastAssistantMessage.includes("markets:")
-        ) {
-          input.placeholder = "🎯 Pick a specific asset from the list above...";
-        } else if (lastAssistantMessage.includes("Analysis Complete")) {
-          input.placeholder =
-            "🚀 Try: 'analyze another crypto' or 'show me forex'...";
-        } else if (lastAssistantMessage.includes("Choose a trading category")) {
-          input.placeholder =
-            "🎯 Choose a category: crypto, forex, stocks, commodities, or indices...";
-        } else if (lastAssistantMessage.includes("couldn't find")) {
-          input.placeholder =
-            "❓ Try typing the exact name or number from the list...";
-        } else {
-          input.placeholder =
-            "🎯 Choose a category: crypto, forex, stocks, commodities, or indices...";
-        }
-      }
-
-      function sendCategoryMessage(categoryName) {
-        const input = document.getElementById("chat-input");
-        input.value = categoryName;
-        sendMessage();
-      }
-
-      function handleChatKeyPress(event) {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          sendMessage();
-        }
-      }
-
-      async function clearChat() {
-        try {
-          const response = await fetch("/api/chat/clear", { method: "POST" });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json();
-          displayMessages(data.messages);
-        } catch (error) {
-          showError(`Failed to clear chat: ${error.message}`);
-        }
-      }
-
-      async function checkAIStatus() {
-        try {
-          const response = await fetch("/api/chat/status");
-          const data = await response.json();
-
-          const aiStatus = document.getElementById("ai-status");
-          // Always show as enabled since Gemini Pro is integrated
-          aiStatus.textContent = "🤖 AI Pro";
-          aiStatus.className = "ai-status enabled";
-          aiStatus.title =
-            "Powered by Google Gemini Pro - Advanced AI conversations";
-        } catch (error) {
-          console.log("Could not check AI status:", error);
-          // Still show as enabled
-          const aiStatus = document.getElementById("ai-status");
-          aiStatus.textContent = "🤖 AI";
-          aiStatus.className = "ai-status enabled";
-          aiStatus.title = "Powered by Google Gemini Pro";
-        }
-      }
-
-      // Load initial data and initialize chat
+      // Load initial data
       document.addEventListener("DOMContentLoaded", () => {
         loadAnalysis();
-        // Initialize chat automatically
-        loadChatMessages();
-        loadCategories();
-        checkAIStatus();
-        // Set focus to chat input for immediate use
-        setTimeout(() => {
-          document.getElementById("chat-input").focus();
-        }, 500);
       });
     </script>
   </body>

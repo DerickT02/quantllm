@@ -261,17 +261,16 @@
   </head>
   <body>
     <div class="container">
-        <div class="header">
-          <h1>
-            📊 QuantLLM
-            <span style="font-size: 1.5rem">OHLCV Market Data</span>
-          </h1>
-          <p>Real-time market data powered by Alpha Vantage API</p>
-        </div>
+      <div class="header">
+        <h1>
+          📊 QuantLLM
+          <span style="font-size: 1.5rem">OHLCV Market Data</span>
+        </h1>
+        <p>Real-time market data powered by Alpha Vantage API</p>
+      </div>
 
-        <div class="content">
-
-          <div class="search-section">
+      <div class="content">
+        <div class="search-section">
           <h2>🔍 Search Market Data</h2>
           <form class="search-form" id="searchForm">
             <div class="form-group">
@@ -362,7 +361,6 @@
 
         <div class="nav-links">
           <a href="/" class="btn btn-secondary">🏠 Back to Dashboard</a>
-          <a href="/chat" class="btn">💬 AI Chat</a>
         </div>
       </div>
     </div>
@@ -377,50 +375,58 @@
           await fetchMarketData();
         });
 
-        document
-          .getElementById("analyzeBtn")
-          .addEventListener("click", async () => {
-            const symbol = document.getElementById("symbol").value.trim();
-            const interval = document.getElementById("interval").value;
-            const periods = document.getElementById("periods").value;
+      document
+        .getElementById("analyzeBtn")
+        .addEventListener("click", async () => {
+          const symbol = document.getElementById("symbol").value.trim();
+          const interval = document.getElementById("interval").value;
+          const periods = document.getElementById("periods").value;
 
-            if (!symbol) {
-              alert("Please enter a symbol first");
-              return;
-            }
+          if (!symbol) {
+            alert("Please enter a symbol first");
+            return;
+          }
 
-            // Show loading state
-            const btn = document.getElementById("analyzeBtn");
-            const originalText = btn.innerHTML;
-            btn.innerHTML = "🔄 Analyzing...";
-            btn.disabled = true;
+          // Show loading state
+          const btn = document.getElementById("analyzeBtn");
+          const originalText = btn.innerHTML;
+          btn.innerHTML = "🔄 Analyzing...";
+          btn.disabled = true;
 
-            try {
-              // Run analysis via market API
-              const response = await fetch(`/api/market/analysis/${symbol}?interval=${interval}&periods=${periods}`, {
+          try {
+            // Run analysis via market API
+            const response = await fetch(
+              `/api/market/analysis/${symbol}?interval=${interval}&periods=${periods}`,
+              {
                 method: "GET",
                 headers: {
                   "Content-Type": "application/json",
                 },
-              });
-
-              const result = await response.json();
-
-              if (result.success) {
-                // Show success message with narrative
-                alert(`Analysis complete!\n\n${result.narrative || 'No narrative available'}`);
-              } else {
-                throw new Error(result.error || "Analysis failed");
               }
-            } catch (error) {
-              console.error("Analysis Error:", error);
-              alert(`Error analyzing: ${error.message}`);
-            } finally {
-              // Reset button
-              btn.innerHTML = originalText;
-              btn.disabled = false;
+            );
+
+            const result = await response.json();
+
+            if (result.success) {
+              // Show success message with narrative
+              alert(
+                `Analysis complete!\n\n${
+                  result.narrative || "No narrative available"
+                }`
+              );
+            } else {
+              throw new Error(result.error || "Analysis failed");
             }
-          });      document.getElementById("downloadBtn").addEventListener("click", () => {
+          } catch (error) {
+            console.error("Analysis Error:", error);
+            alert(`Error analyzing: ${error.message}`);
+          } finally {
+            // Reset button
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+          }
+        });
+      document.getElementById("downloadBtn").addEventListener("click", () => {
         if (!currentData) return;
 
         const symbol = document.getElementById("symbol").value.trim();
@@ -580,16 +586,14 @@
         });
       });
 
-        function selectSymbol(symbol) {
-          document.getElementById("symbol").value = symbol;
-        }
+      function selectSymbol(symbol) {
+        document.getElementById("symbol").value = symbol;
+      }
 
-        // Load default popular stocks on page load
-        document.addEventListener("DOMContentLoaded", () => {
-          document
-            .querySelector('.symbol-btn[data-category="stocks"]')
-            .click();
-        });
+      // Load default popular stocks on page load
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelector('.symbol-btn[data-category="stocks"]').click();
+      });
     </script>
   </body>
 </html>

@@ -13,7 +13,7 @@ import { dirname, join } from 'path';
 import { runPipeline, runAnalysis, runRealTimeAnalysis, getMarketData, searchMarketSymbols, getPopularSymbols, validateSymbol } from './src/orchestrator.js';
 import { makeSyntheticSeries } from './src/utils/synthetic.js';
 import { runIndicatorAgent, runPatternAgent, runTrendAgent, runRiskAgent } from './src/agents/index.js';
-import { ChatService } from './src/chat.js';
+// Chat feature removed for presentation-only build
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,8 +30,9 @@ app.use(express.static(join(__dirname, 'public')));
 let latestAnalysis: any = null;
 let isAnalyzing = false;
 
-// Chat service instance
-const chatService = new ChatService();
+// Presentation: focus on BTC and ETH only
+const PRESENTATION_ASSETS = ['BTC', 'ETH'] as const;
+type PresentationAsset = typeof PRESENTATION_ASSETS[number];
 
 
 /**
@@ -141,77 +142,43 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     agents: ['indicator', 'pattern', 'trend', 'risk'],
-    chat: 'enabled',
+    chat: 'disabled',
+    presentation: {
+      assets: PRESENTATION_ASSETS,
+      interval: 'daily'
+    },
     pipeline: 'langgraph'
   });
 });
 
-// Chat API endpoints
-app.get('/api/chat/messages', (req, res) => {
+// Presentation endpoints (BTC and ETC only)
+app.get('/api/presentation/analysis', async (req, res) => {
   try {
-    const messages = chatService.getMessages();
-    res.json({ messages, timestamp: new Date().toISOString() });
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to get chat messages', details: errorMessage });
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
   }
 });
 
-app.post('/api/chat/message', async (req, res) => {
+app.get('/api/presentation/data', async (req, res) => {
   try {
-    const { message } = req.body;
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json({ error: 'Message is required and must be a string' });
-    }
-
-    const response = await chatService.processUserMessage(message.trim());
-    const allMessages = chatService.getMessages();
-    
-    res.json({ 
-      response,
-      messages: allMessages,
-      currentCategory: chatService.getCurrentCategory(),
-      timestamp: new Date().toISOString()
-    });
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to process chat message', details: errorMessage });
-  }
-});
-
-app.get('/api/chat/categories', (req, res) => {
-  try {
-    const categories = chatService.getCategories();
-    res.json({ categories, timestamp: new Date().toISOString() });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to get categories', details: errorMessage });
-  }
-});
-
-app.post('/api/chat/clear', (req, res) => {
-  try {
-    chatService.clearChat();
-    const messages = chatService.getMessages();
-    res.json({ messages, timestamp: new Date().toISOString() });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to clear chat', details: errorMessage });
-  }
-});
-
-app.get('/api/chat/status', (req, res) => {
-  try {
-    res.json({ 
-      geminiEnabled: chatService.isGeminiEnabled(),
-      currentCategory: chatService.getCurrentCategory(),
-      selectedAsset: chatService.getSelectedAsset(),
-      chatState: chatService.getChatState(),
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to get chat status', details: errorMessage });
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
   }
 });
 
@@ -283,10 +250,9 @@ app.get('/api/market/search', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 QuantLLM Web Server running on http://localhost:${PORT}`);
   console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`� Chat Interface: http://localhost:${PORT} (integrated)`);
-  console.log(`�🔗 API: http://localhost:${PORT}/api/analysis`);
+  console.log(`🔗 API: http://localhost:${PORT}/api/analysis`);
   console.log(`🤖 Individual agents: http://localhost:${PORT}/api/agents/{indicator|pattern|trend|risk}`);
-  console.log(`💭 Chat API: http://localhost:${PORT}/api/chat/messages`);
+  console.log(`🎯 Presentation: http://localhost:${PORT}/api/presentation/analysis`);
   
   // Generate initial analysis
   generateAnalysis().then(() => {

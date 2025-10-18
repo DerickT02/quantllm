@@ -168,7 +168,7 @@ export class MarketDataService {
    */
   private isCryptoSymbol(symbol: string): boolean {
     const cryptoSymbols = [
-      'BTC', 'ETH', 'LTC', 'XRP', 'ADA', 'DOT', 'DOGE', 'MATIC', 'SOL', 'AVAX',
+      'BTC', 'ETH', 'ETC', 'LTC', 'XRP', 'ADA', 'DOT', 'DOGE', 'MATIC', 'SOL', 'AVAX',
       'BITCOIN', 'ETHEREUM', 'LITECOIN', 'RIPPLE', 'CARDANO', 'POLKADOT',
       'USDT', 'USDC', 'BNB', 'LUNA', 'ATOM', 'LINK', 'UNI', 'ALGO'
     ];
