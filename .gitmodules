@@ -1,0 +1,3 @@
+[submodule "external/quantllm-agents"]
+	path = external/quantllm-agents
+	url = https://github.com/DerickT02/quantllm-agents.git
