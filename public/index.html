@@ -529,6 +529,9 @@
           </span>
           <span id="autoRefreshLabel">⏱️ Auto Refresh: <span id="autoStatus">Off</span></span>
         </button>
+        <button class="btn" onclick="startReplayMode()" id="replayBtn">
+          ▶️ Replay Mode
+        </button>
       </div>
 
       <div id="timestamp" class="timestamp">
@@ -1562,6 +1565,127 @@
           }
         }, 1000);
       });
+
+      // ========== REPLAY MODE ==========
+      let replayData = null;
+      let replayInterval = null;
+      let replayIndex = 0;
+      let isReplaying = false;
+
+      async function startReplayMode() {
+        if (isReplaying) {
+          stopReplay();
+          return;
+        }
+
+        const replayBtn = document.getElementById("replayBtn");
+        replayBtn.textContent = "⏸️ Stop Replay";
+        isReplaying = true;
+
+        // Disable auto-refresh during replay
+        if (autoRefresh) {
+          toggleAutoRefresh();
+        }
+
+        // Fetch full data
+        showLoading(true);
+        try {
+          const interval = document.getElementById("interval-select")?.value || "15min";
+          const periods = 50;
+          const response = await fetch(
+            `/api/market/analysis/${selectedAsset}?interval=${interval}&periods=${periods}`
+          );
+          
+          if (!response.ok) throw new Error("Failed to fetch data");
+          
+          const data = await response.json();
+          replayData = mapMarketAnalysisToDashboardPayload(data);
+          
+          replayIndex = 26; // Start after minimum for EMAs
+          showLoading(false);
+          
+          document.getElementById("lastUpdateTime").textContent = "🎬 REPLAY MODE - Building from scratch...";
+          document.getElementById("nextUpdateCountdown").textContent = "";
+          
+          replayInterval = setInterval(updateReplay, 300);
+          
+        } catch (error) {
+          console.error("Replay error:", error);
+          showError("Failed to start replay: " + error.message);
+          stopReplay();
+        }
+      }
+
+      function updateReplay() {
+        if (!replayData || !isReplaying) {
+          stopReplay();
+          return;
+        }
+
+        const fullCandles = replayData.data.visuals.price;
+        const fullTimes = replayData.data.visuals.times;
+        const fullSignals = replayData.data.signals || [];
+
+        if (replayIndex >= fullCandles.length) {
+          document.getElementById("lastUpdateTime").textContent = 
+            `✅ Replay Complete! ${replayIndex} candles shown`;
+          stopReplay();
+          return;
+        }
+
+        const partialData = {
+          ...replayData,
+          data: {
+            ...replayData.data,
+            visuals: {
+              price: replayData.data.visuals.price.slice(0, replayIndex + 1),
+              times: replayData.data.visuals.times.slice(0, replayIndex + 1),
+              indicator: {
+                rsi: replayData.data.visuals.indicator.rsi.slice(0, replayIndex + 1),
+                overbought: replayData.data.visuals.indicator.overbought,
+                oversold: replayData.data.visuals.indicator.oversold,
+              },
+              trend: {
+                ema12: replayData.data.visuals.trend.ema12.slice(0, replayIndex + 1),
+                ema26: replayData.data.visuals.trend.ema26.slice(0, replayIndex + 1),
+              },
+              pattern: replayData.data.visuals.pattern,
+              combined: {
+                signals: fullSignals.filter(s => s.index <= replayIndex)
+              }
+            },
+            signals: fullSignals.filter(s => s.index <= replayIndex)
+          }
+        };
+
+        const currentTime = new Date(fullTimes[replayIndex] * 1000);
+        document.getElementById("lastUpdateTime").textContent = 
+          `🎬 Candle ${replayIndex - 25}/${fullCandles.length - 26} | ${currentTime.toLocaleString()}`;
+        
+        const signalsCount = partialData.data.signals.length;
+        document.getElementById("nextUpdateCountdown").textContent = 
+          `Signals: ${signalsCount}`;
+
+        try {
+          renderSignalsGraph(partialData);
+        } catch (e) {
+          console.error("Replay render error:", e);
+        }
+
+        replayIndex++;
+      }
+
+      function stopReplay() {
+        isReplaying = false;
+        if (replayInterval) {
+          clearInterval(replayInterval);
+          replayInterval = null;
+        }
+        
+        document.getElementById("replayBtn").textContent = "▶️ Replay Mode";
+        replayIndex = 0;
+        replayData = null;
+      }
     </script>
   </body>
 </html>
