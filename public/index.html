@@ -1161,8 +1161,15 @@
           const windowSize = Math.min(150, n);
           const start = n - windowSize;
           const slice = price.slice(start);
-          const minP = Math.min(...slice);
-          const maxP = Math.max(...slice);
+          const rawMinP = Math.min(...slice);
+          const rawMaxP = Math.max(...slice);
+          
+          // Add 10% padding to y-axis for better visual spacing
+          const priceRange = rawMaxP - rawMinP;
+          const padding = priceRange * 0.10; // 10% padding on each side
+          const minP = rawMinP - padding;
+          const maxP = rawMaxP + padding;
+          
           const left = 60,
             right = 20,
             top = 50,

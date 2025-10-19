@@ -233,8 +233,8 @@ app.get('/api/market/analysis/:symbol', async (req, res) => {
     }
 
     const useCache = req.query.useCache !== "false";
-    const interval = (req.query.interval as any) || "15min";
-    const periods = parseInt((req.query.periods as string) || "120");
+    const interval = (req.query.interval as any) || "5min";
+    const periods = parseInt((req.query.periods as string) || "48");
     const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
 
     if (useCache && analysisCache.has(cacheKey)) {

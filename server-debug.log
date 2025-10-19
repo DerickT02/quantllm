@@ -1,0 +1,6 @@
+
+> quantllm@1.0.0 web
+> tsx server.ts
+
+✅ Alpha Vantage API key found - using real market data
+Server is running on port 3000
