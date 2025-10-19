@@ -1751,7 +1751,10 @@
                 ema12: replayData.data.visuals.trend.ema12.slice(0, replayIndex + 1),
                 ema26: replayData.data.visuals.trend.ema26.slice(0, replayIndex + 1),
               },
-              pattern: replayData.data.visuals.pattern,
+              pattern: {
+                ...replayData.data.visuals.pattern,
+                events: (replayData.data.visuals.pattern?.events || []).filter(e => e.index <= replayIndex)
+              },
               combined: {
                 signals: fullSignals.filter(s => s.index <= replayIndex)
               }
@@ -1765,11 +1768,15 @@
           `🎬 Candle ${replayIndex - 25}/${fullCandles.length - 26} | ${currentTime.toLocaleString()}`;
         
         const signalsCount = partialData.data.signals.length;
+        const patternCount = partialData.data.visuals.pattern?.events?.length || 0;
         document.getElementById("nextUpdateCountdown").textContent = 
-          `Signals: ${signalsCount}`;
+          `Signals: ${signalsCount} | Patterns: ${patternCount}`;
 
         try {
+          // Update main signals graph
           renderSignalsGraph(partialData);
+          // Update mini-charts for agents
+          requestAnimationFrame(() => renderMiniCharts(partialData.data.visuals));
         } catch (e) {
           console.error("Replay render error:", e);
         }
