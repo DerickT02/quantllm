@@ -956,7 +956,7 @@
           }
         } catch {}
 
-        // Mini Pattern (events heat)
+        // Mini Pattern - Candlestick Chart with Pattern Highlights
         try {
           const canvas = document.getElementById("miniPattern");
           const ctx = canvas.getContext("2d");
@@ -976,37 +976,132 @@
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.scale(dpr, dpr);
           ctx.clearRect(0, 0, w, h);
+          
           const events = visuals?.pattern?.events || [];
           const times = visuals?.times || [];
+          const prices = visuals?.price || [];
           const n = times.length;
-          if (n < 2) return;
-          const start = Math.max(0, n - 100);
-          const left = 20,
+          if (n < 2 || prices.length < 2) return;
+          
+          const windowSize = Math.min(20, n); // Show last 20 candles
+          const start = n - windowSize;
+          const priceSlice = prices.slice(start);
+          
+          const minPrice = Math.min(...priceSlice.map(c => c.low));
+          const maxPrice = Math.max(...priceSlice.map(c => c.high));
+          const priceRange = maxPrice - minPrice;
+          
+          const left = 30,
             right = 10,
-            top = 10,
-            bottom = 10;
+            top = 15,
+            bottom = 20;
           const plotW = w - left - right,
             plotH = h - top - bottom;
-          const xAt = (i) =>
-            left + ((i - start) / Math.max(1, n - start - 1)) * plotW;
-          ctx.strokeStyle = "#eee";
+          
+          const candleWidth = Math.max(2, Math.min(12, plotW / windowSize * 0.7));
+          
+          // Helper functions
+          const xAt = (i) => left + ((i - start + 0.5) / windowSize) * plotW;
+          const yAt = (price) => top + (1 - (price - minPrice) / Math.max(1e-9, priceRange)) * plotH;
+          
+          // Draw border
+          ctx.strokeStyle = "#e5e7eb";
+          ctx.lineWidth = 1;
           ctx.strokeRect(left, top, plotW, plotH);
-          for (const ev of events) {
-            if (ev.index < start) continue;
-            const x = xAt(ev.index);
-            const y = top + plotH / 2;
-            ctx.beginPath();
-            ctx.fillStyle =
-              ev.pattern === "BullishEngulfing"
-                ? "#22c55e"
-                : ev.pattern === "BearishEngulfing"
-                ? "#ef4444"
-                : "#9ca3af";
-            ctx.globalAlpha = Math.max(0.2, Math.min(1, ev.strength));
-            ctx.fillRect(x - 2, y - 8, 4, 16);
-            ctx.globalAlpha = 1;
+          
+          // Draw price axis labels
+          ctx.fillStyle = "#6b7280";
+          ctx.font = "9px Segoe UI";
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          for (let i = 0; i <= 2; i++) {
+            const price = minPrice + (i / 2) * priceRange;
+            const y = yAt(price);
+            ctx.fillText(price.toFixed(0), left - 5, y);
           }
-        } catch {}
+          
+          // Create pattern event lookup
+          const patternMap = new Map();
+          for (const ev of events) {
+            if (ev.index >= start) {
+              patternMap.set(ev.index, ev);
+            }
+          }
+          
+          // Draw candlesticks
+          for (let i = start; i < n; i++) {
+            const candle = prices[i];
+            const x = xAt(i);
+            const openY = yAt(candle.open);
+            const closeY = yAt(candle.close);
+            const highY = yAt(candle.high);
+            const lowY = yAt(candle.low);
+            
+            const isBullish = candle.close >= candle.open;
+            const hasPattern = patternMap.has(i);
+            
+            // Highlight background if pattern exists
+            if (hasPattern) {
+              const pattern = patternMap.get(i);
+              const isBullishPattern = pattern.pattern === "BullishEngulfing";
+              ctx.fillStyle = isBullishPattern ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)";
+              ctx.fillRect(x - candleWidth/2 - 2, top, candleWidth + 4, plotH);
+            }
+            
+            // Draw wick (high-low line)
+            ctx.strokeStyle = isBullish ? "#22c55e" : "#ef4444";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, lowY);
+            ctx.stroke();
+            
+            // Draw candle body
+            const bodyHeight = Math.abs(closeY - openY);
+            const bodyY = Math.min(openY, closeY);
+            
+            if (isBullish) {
+              ctx.fillStyle = "#22c55e";
+              ctx.fillRect(x - candleWidth/2, bodyY, candleWidth, Math.max(1, bodyHeight));
+            } else {
+              ctx.fillStyle = "#ef4444";
+              ctx.fillRect(x - candleWidth/2, bodyY, candleWidth, Math.max(1, bodyHeight));
+            }
+            
+            // Draw pattern marker
+            if (hasPattern) {
+              const pattern = patternMap.get(i);
+              const isBullishPattern = pattern.pattern === "BullishEngulfing";
+              
+              // Draw arrow
+              ctx.fillStyle = isBullishPattern ? "#22c55e" : "#ef4444";
+              ctx.font = "bold 12px Segoe UI";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              
+              if (isBullishPattern) {
+                // Up arrow
+                ctx.fillText("↑", x, lowY + 10);
+              } else {
+                // Down arrow
+                ctx.fillText("↓", x, highY - 10);
+              }
+            }
+          }
+          
+          // Draw legend
+          ctx.font = "10px Segoe UI";
+          ctx.fillStyle = "#6b7280";
+          ctx.textAlign = "left";
+          ctx.fillText("🟢 Bullish", left, h - 5);
+          ctx.fillText("🔴 Bearish", left + 60, h - 5);
+          if (events.length > 0) {
+            ctx.fillText(`⚡ ${events.length} patterns`, left + 120, h - 5);
+          }
+          
+        } catch (e) {
+          console.error("Pattern chart error:", e);
+        }
 
         // Mini EMAs
         try {
