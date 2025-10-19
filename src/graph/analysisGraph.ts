@@ -227,8 +227,6 @@ function computeSignals(
 
   // Track last signal to avoid duplicates
   let lastSignalIndex = -5;
-  
-  console.log(`[Signal Debug] Computing signals for ${n} candles, support: ${support.toFixed(0)}, resistance: ${resistance.toFixed(0)}, range: ${priceRange.toFixed(0)}`);
 
   for (let i = 26; i < n; i++) {
     // Skip if too close to last signal
@@ -259,13 +257,6 @@ function computeSignals(
     // Price momentum (comparing with 3 candles ago)
     const prevPrice = i >= 3 ? candles[i - 3].close : price;
     const momentum = ((price - prevPrice) / prevPrice) * 100;
-    
-    // Debug last candle
-    if (i === n - 1) {
-      console.log(`[Signal Debug] Last candle (${i}): price=${price.toFixed(0)}, RSI=${r.toFixed(1)}, trend=${up?'UP':down?'DOWN':'SIDEWAYS'}`);
-      console.log(`  distFromSupport=${distanceFromSupport.toFixed(1)}%, distFromResistance=${distanceFromResistance.toFixed(1)}%`);
-      console.log(`  momentum=${momentum.toFixed(2)}%, bullish=${bullishCandle}, bearish=${bearishCandle}`);
-    }
 
     // === BUY SIGNALS ===
     
@@ -367,8 +358,6 @@ function computeSignals(
       continue;
     }
   }
-  
-  console.log(`[Signal Debug] Generated ${signals.length} total signals (${signals.filter(s=>s.type==='BUY').length} BUY, ${signals.filter(s=>s.type==='SELL').length} SELL)`);
   
   return signals;
 }

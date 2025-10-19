@@ -409,6 +409,85 @@
       tbody tr:hover {
         background-color: #f1f3f5;
       }
+
+      /* Live mode animations */
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.7;
+          transform: scale(1.05);
+        }
+      }
+
+      @keyframes priceUp {
+        0% {
+          background-color: transparent;
+        }
+        50% {
+          background-color: rgba(34, 197, 94, 0.3);
+        }
+        100% {
+          background-color: transparent;
+        }
+      }
+
+      @keyframes priceDown {
+        0% {
+          background-color: transparent;
+        }
+        50% {
+          background-color: rgba(239, 68, 68, 0.3);
+        }
+        100% {
+          background-color: transparent;
+        }
+      }
+
+      @keyframes newSignal {
+        0% {
+          transform: scale(0);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1.2);
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .price-up {
+        animation: priceUp 1s ease-in-out;
+      }
+
+      .price-down {
+        animation: priceDown 1s ease-in-out;
+      }
+
+      .live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 12px;
+        font-size: 0.85em;
+        font-weight: bold;
+        color: #ef4444;
+      }
+
+      .countdown {
+        font-size: 0.85em;
+        color: #666;
+        font-weight: normal;
+      }
+    </style>
+```
     </style>
   </head>
   <body>
@@ -445,11 +524,17 @@
           🔄 Generate New
         </button>
         <button class="btn" onclick="toggleAutoRefresh()">
-          ⏱️ Auto Refresh: <span id="autoStatus">Off</span>
+          <span id="liveIndicator" style="display: none;">
+            🔴 <span style="animation: pulse 1.5s ease-in-out infinite;">LIVE</span>
+          </span>
+          <span id="autoRefreshLabel">⏱️ Auto Refresh: <span id="autoStatus">Off</span></span>
         </button>
       </div>
 
-      <div id="timestamp" class="timestamp"></div>
+      <div id="timestamp" class="timestamp">
+        <span id="lastUpdateTime"></span>
+        <span id="nextUpdateCountdown" style="margin-left: 10px; color: #666;"></span>
+      </div>
 
       <div id="loading" class="loading" style="display: none">
         <div class="spinner"></div>
@@ -673,12 +758,19 @@
       }
 
       function updateDisplay(data) {
-        // Update timestamp
-        document.getElementById(
-          "timestamp"
-        ).textContent = `Last updated: ${new Date(
-          data.timestamp
-        ).toLocaleString()}`;
+        // Update timestamp with live indicator
+        const now = new Date(data.timestamp);
+        const timeStr = now.toLocaleTimeString();
+        const dateStr = now.toLocaleDateString();
+        
+        document.getElementById("lastUpdateTime").textContent = 
+          `Last updated: ${dateStr} ${timeStr}`;
+        
+        // Get current price for animation
+        const currentPrice = data.data?.visuals?.price?.slice(-1)[0];
+        if (currentPrice) {
+          animatePriceChange(currentPrice);
+        }
 
         // Update Indicator Agent
         const indicator = data.data.indicator;
@@ -1355,16 +1447,80 @@
       function toggleAutoRefresh() {
         autoRefresh = !autoRefresh;
         const statusEl = document.getElementById("autoStatus");
+        const liveIndicator = document.getElementById("liveIndicator");
+        const autoRefreshLabel = document.getElementById("autoRefreshLabel");
 
         if (autoRefresh) {
           statusEl.textContent = "On";
-          refreshInterval = setInterval(loadFreshAnalysis, 10000); // Every 10 seconds
+          liveIndicator.style.display = "inline";
+          autoRefreshLabel.style.display = "none";
+          startCountdown();
+          refreshInterval = setInterval(() => {
+            loadFreshAnalysis();
+            startCountdown();
+          }, 5000); // Every 5 seconds for live updates
         } else {
           statusEl.textContent = "Off";
+          liveIndicator.style.display = "none";
+          autoRefreshLabel.style.display = "inline";
           if (refreshInterval) {
             clearInterval(refreshInterval);
           }
+          if (countdownInterval) {
+            clearInterval(countdownInterval);
+          }
+          document.getElementById("nextUpdateCountdown").textContent = "";
         }
+      }
+
+      let countdownInterval;
+      let countdownSeconds = 5;
+      
+      function startCountdown() {
+        countdownSeconds = 5;
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+        }
+        
+        countdownInterval = setInterval(() => {
+          countdownSeconds--;
+          const countdownEl = document.getElementById("nextUpdateCountdown");
+          if (countdownEl && autoRefresh) {
+            if (countdownSeconds > 0) {
+              countdownEl.textContent = `Next update in ${countdownSeconds}s`;
+              countdownEl.className = "countdown";
+            } else {
+              countdownEl.textContent = "Updating...";
+            }
+          }
+          
+          if (countdownSeconds <= 0) {
+            clearInterval(countdownInterval);
+          }
+        }, 1000);
+      }
+
+      // Track previous price for animations
+      let previousPrice = null;
+
+      function animatePriceChange(newPrice) {
+        if (previousPrice !== null && previousPrice !== newPrice) {
+          const priceElements = document.querySelectorAll('.metric-value');
+          priceElements.forEach(el => {
+            if (newPrice > previousPrice) {
+              el.classList.remove('price-down');
+              el.classList.add('price-up');
+            } else if (newPrice < previousPrice) {
+              el.classList.remove('price-up');
+              el.classList.add('price-down');
+            }
+            
+            setTimeout(() => {
+              el.classList.remove('price-up', 'price-down');
+            }, 1000);
+          });
+        }
+        previousPrice = newPrice;
       }
 
       // Presentation-only: BTC/ETH selector and fetchers
@@ -1396,9 +1552,15 @@
         };
       }
 
-      // Load initial data
+      // Load initial data and enable live mode
       document.addEventListener("DOMContentLoaded", () => {
         loadAnalysis();
+        // Enable live mode by default after initial load
+        setTimeout(() => {
+          if (!autoRefresh) {
+            toggleAutoRefresh();
+          }
+        }, 1000);
       });
     </script>
   </body>
