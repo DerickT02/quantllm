@@ -1590,8 +1590,8 @@
         // Fetch full data
         showLoading(true);
         try {
-          const interval = document.getElementById("interval-select")?.value || "15min";
-          const periods = 50;
+          const interval = document.getElementById("interval-select")?.value || "5min";
+          const periods = 48;
           const response = await fetch(
             `/api/market/analysis/${selectedAsset}?interval=${interval}&periods=${periods}`
           );
