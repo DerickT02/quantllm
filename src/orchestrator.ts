@@ -139,7 +139,7 @@ export async function runRealTimeAnalysis(
 ) {
   try {
     // Fetch real market data
-    const candles = await marketDataService.getOHLCVWithPeriods(symbol, periods, interval);
+  const candles = await marketDataService.getOHLCVWithPeriods(symbol, periods, interval);
     
     if (candles.length === 0) {
       throw new Error(`No market data found for symbol: ${symbol}`);

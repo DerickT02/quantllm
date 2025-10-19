@@ -44,8 +44,21 @@
       .controls {
         display: flex;
         justify-content: center;
-        gap: 15px;
+        align-items: center;
+        gap: 20px;
         margin-bottom: 30px;
+        flex-wrap: wrap;
+      }
+
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .control-group label {
+        color: white;
+        font-weight: 600;
       }
 
       .btn {
@@ -200,10 +213,35 @@
       }
       #signalsCanvas {
         width: 100%;
-        height: 240px;
+        height: 400px;
         background: #fafbff;
         border: 1px solid #eee;
         border-radius: 10px;
+      }
+
+      .graph-legend {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 15px;
+        flex-wrap: wrap;
+        font-size: 0.85rem;
+        color: #555;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .legend-color {
+        width: 30px;
+        height: 3px;
+        border-radius: 2px;
+      }
+      .legend-marker {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
       }
 
       .narrative-content {
@@ -297,7 +335,80 @@
         border-color: white;
       }
 
-      /* chat styles removed */
+      .data-source {
+        font-size: 0.8em;
+        color: #888;
+        margin-top: 5px;
+      }
+      .data-table-container {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin: 30px 0;
+      }
+      .data-table-container h2 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 1.3rem;
+      }
+      .data-table-container .controls {
+        background: rgba(0, 0, 0, 0.05);
+        padding: 10px;
+        border-radius: 10px;
+      }
+      .data-table-container .control-group label {
+        color: #555;
+        font-weight: 600;
+      }
+      .data-table-container .control-group select,
+      .data-table-container .control-group input {
+        background: white;
+        border: 1px solid #ddd;
+        color: #333;
+        padding: 5px 8px;
+        border-radius: 8px;
+      }
+      .data-table-container .control-group select option {
+        background: white;
+        color: #333;
+      }
+      .data-table-container .btn {
+        background: #667eea;
+        border: none;
+        color: white;
+      }
+      .data-table-container .btn:hover {
+        background: #764ba2;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        color: #333;
+      }
+      th,
+      td {
+        border: none;
+        border-bottom: 1px solid #eee;
+        padding: 12px 15px;
+        text-align: left;
+      }
+      th {
+        background-color: transparent;
+        font-weight: 600;
+        color: #555;
+        text-transform: uppercase;
+        font-size: 0.85em;
+      }
+      tbody tr:nth-child(even) {
+        background-color: #f8f9fa;
+      }
+      tbody tr:hover {
+        background-color: #f1f3f5;
+      }
     </style>
   </head>
   <body>
@@ -308,28 +419,34 @@
       </div>
 
       <div class="controls">
-        <div class="asset-toggle" role="group" aria-label="Asset selector">
-          <button
-            class="asset-btn active"
-            id="btnBTC"
-            onclick="selectAsset('BTC')"
+        <div class="control-group">
+          <label for="asset-selector">Asset</label>
+          <div
+            id="asset-selector"
+            class="asset-toggle"
+            role="group"
+            aria-label="Asset selector"
           >
-            BTC
-          </button>
-          <button class="asset-btn" id="btnETH" onclick="selectAsset('ETH')">
-            ETH
-          </button>
+            <button
+              class="asset-btn active"
+              id="btnBTC"
+              onclick="selectAsset('BTC')"
+            >
+              BTC
+            </button>
+            <button class="asset-btn" id="btnETH" onclick="selectAsset('ETH')">
+              ETH
+            </button>
+          </div>
         </div>
-        <button class="btn" onclick="loadAnalysis()">� Refresh Analysis</button>
+
+        <button class="btn" onclick="loadAnalysis()">Refresh Analysis</button>
         <button class="btn" onclick="loadFreshAnalysis()">
           🔄 Generate New
         </button>
         <button class="btn" onclick="toggleAutoRefresh()">
           ⏱️ Auto Refresh: <span id="autoStatus">Off</span>
         </button>
-        <a href="/market-data.html" class="btn" style="text-decoration: none">
-          📈 OHLCV Data
-        </a>
       </div>
 
       <div id="timestamp" class="timestamp"></div>
@@ -348,6 +465,7 @@
             📈 Signals Graph (Price, EMAs, Buy/Sell)
           </div>
           <canvas id="signalsCanvas"></canvas>
+          <!-- Legend is now drawn directly on the canvas below the graph -->
         </div>
         <!-- Indicator Agent -->
         <div class="agent-card">
@@ -463,6 +581,58 @@
       <div id="narrative-section" class="narrative" style="display: none">
         <h3>📰 Market Narrative</h3>
         <div id="narrative-content" class="narrative-content"></div>
+      </div>
+
+      <div class="data-table-container" style="display: none">
+        <h2>OHLCV Market Data</h2>
+        <div
+          class="controls"
+          style="justify-content: flex-start; margin-bottom: 20px"
+        >
+          <div class="control-group">
+            <label for="ohlcv-interval-select">Interval</label>
+            <select id="ohlcv-interval-select">
+              <option value="15min" selected>15 Min</option>
+              <option value="daily">Daily</option>
+              <option value="60min">60 Min</option>
+              <option value="30min">30 Min</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="ohlcv-periods-input">Periods</label>
+            <input
+              type="number"
+              id="ohlcv-periods-input"
+              value="120"
+              min="20"
+              max="500"
+            />
+          </div>
+
+          <button
+            class="btn"
+            style="padding: 8px 16px"
+            onclick="loadOhlcvData()"
+          >
+            Refresh Table
+          </button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Open</th>
+              <th>High</th>
+              <th>Low</th>
+              <th>Close</th>
+              <th>Volume</th>
+            </tr>
+          </thead>
+          <tbody id="ohlcvBody">
+            <!-- OHLCV data will be populated here -->
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -602,6 +772,34 @@
         if (data?.data?.visuals) {
           requestAnimationFrame(() => renderMiniCharts(data.data.visuals));
         }
+        // Render the OHLCV table
+        if (data?.ohlcv) {
+          renderOhlcvTable(data.ohlcv);
+        }
+      }
+
+      function renderOhlcvTable(ohlcvData) {
+        const tableContainer = document.querySelector(".data-table-container");
+        const tableBody = document.getElementById("ohlcvBody");
+        if (!ohlcvData || ohlcvData.length === 0) {
+          tableContainer.style.display = "none";
+          return;
+        }
+
+        tableBody.innerHTML = ""; // Clear previous data
+        ohlcvData.forEach((row) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${row.date}</td>
+            <td>${row.open}</td>
+            <td>${row.high}</td>
+            <td>${row.low}</td>
+            <td>${row.close}</td>
+            <td>${row.volume}</td>
+          `;
+          tableBody.appendChild(tr);
+        });
+        tableContainer.style.display = "block";
       }
 
       function renderMiniCharts(visuals) {
@@ -777,9 +975,7 @@
       async function loadAnalysis() {
         showLoading(true);
         try {
-          const response = await fetch(
-            `/api/market/analysis/${selectedAsset}?interval=daily&periods=120`
-          );
+          const response = await fetch(`/api/market/analysis/${selectedAsset}`);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const market = await response.json();
           const data = mapMarketAnalysisToDashboardPayload(market);
@@ -795,7 +991,7 @@
         showLoading(true);
         try {
           const response = await fetch(
-            `/api/market/analysis/${selectedAsset}?interval=daily&periods=120`
+            `/api/market/analysis/${selectedAsset}?useCache=false`
           );
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const market = await response.json();
@@ -805,6 +1001,25 @@
         } catch (error) {
           showError(`Failed to generate fresh analysis: ${error.message}`);
           showLoading(false);
+        }
+      }
+
+      async function loadOhlcvData() {
+        try {
+          const interval = document.getElementById(
+            "ohlcv-interval-select"
+          ).value;
+          const periods = document.getElementById("ohlcv-periods-input").value;
+          const response = await fetch(
+            `/api/market/analysis/${selectedAsset}?interval=${interval}&periods=${periods}`
+          );
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const market = await response.json();
+          if (market.recentData) {
+            renderOhlcvTable(market.recentData);
+          }
+        } catch (error) {
+          showError(`Failed to load table data: ${error.message}`);
         }
       }
 
@@ -844,17 +1059,40 @@
 
           const n = price.length;
           if (n < 2) return;
+
+          const latestPrice = price[n - 1];
+          const latestTime = new Date(times[n - 1] * 1000);
+
           const windowSize = Math.min(150, n);
           const start = n - windowSize;
           const slice = price.slice(start);
           const minP = Math.min(...slice);
           const maxP = Math.max(...slice);
-          const left = 40,
-            right = 10,
-            top = 10,
-            bottom = 20;
+          const left = 60,
+            right = 20,
+            top = 50,
+            bottom = 70; // Increased to accommodate legend
           const plotW = width - left - right;
           const plotH = height - top - bottom;
+
+          // Display latest price and time
+          ctx.fillStyle = "#2c3e50";
+          ctx.font = "bold 18px Segoe UI";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          ctx.fillText(
+            `${selectedAsset}/USD: ${latestPrice.toFixed(2)}`,
+            left,
+            10
+          );
+
+          ctx.font = "12px Segoe UI";
+          ctx.fillStyle = "#555";
+          ctx.fillText(
+            `${latestTime.toLocaleDateString()} ${latestTime.toLocaleTimeString()}`,
+            left,
+            32
+          );
 
           const xAt = (i) =>
             left + ((i - start) / Math.max(1, n - start - 1)) * plotW;
@@ -865,6 +1103,43 @@
           ctx.strokeStyle = "#eaeaea";
           ctx.lineWidth = 1;
           ctx.strokeRect(left, top, plotW, plotH);
+
+          // Y-Axis Labels (Price)
+          ctx.fillStyle = "#555";
+          ctx.font = "10px Segoe UI";
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          const yLabelCount = 5;
+          for (let i = 0; i <= yLabelCount; i++) {
+            const priceVal = minP + (i / yLabelCount) * (maxP - minP);
+            const y = yAt(priceVal);
+            ctx.fillText(priceVal.toFixed(2), left - 8, y);
+          }
+
+          // X-Axis Labels (Time)
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          const xLabelCount = 4;
+          for (let i = 0; i <= xLabelCount; i++) {
+            const index = Math.floor(
+              start + (i / xLabelCount) * (windowSize - 1)
+            );
+            const time = new Date(times[index] * 1000);
+            const x = xAt(index);
+            ctx.fillText(time.toLocaleTimeString(), x, top + plotH + 8);
+          }
+
+          // Axis Titles
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          // Y-axis title
+          ctx.translate(left / 2 - 10, top + plotH / 2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.fillText("Price (USD)", 0, 0);
+          ctx.restore();
+          // X-axis title
+          ctx.fillText("Time", left + plotW / 2, height - 10);
 
           const plotLine = (series, color) => {
             ctx.beginPath();
@@ -884,22 +1159,139 @@
           if (ema12.length === price.length) plotLine(ema12, "#22c55e");
           if (ema26.length === price.length) plotLine(ema26, "#ef4444");
 
+          // Draw legend at bottom (below X-axis)
+          const legendX = left + 10;
+          const legendY = top + plotH + 35; // Below the X-axis labels
+          const legendLineHeight = 18;
+          const legendSpacing = 90; // Horizontal spacing between legend items
+
+          ctx.font = "bold 11px Segoe UI";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+
+          // Price line
+          ctx.strokeStyle = "#4a6cf7";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(legendX, legendY);
+          ctx.lineTo(legendX + 20, legendY);
+          ctx.stroke();
+          ctx.fillStyle = "#2c3e50";
+          ctx.fillText("Price", legendX + 25, legendY);
+
+          // EMA12 line
+          if (ema12.length === price.length) {
+            const ema12X = legendX + legendSpacing;
+            ctx.strokeStyle = "#22c55e";
+            ctx.beginPath();
+            ctx.moveTo(ema12X, legendY);
+            ctx.lineTo(ema12X + 20, legendY);
+            ctx.stroke();
+            ctx.fillStyle = "#2c3e50";
+            ctx.fillText("EMA12", ema12X + 25, legendY);
+          }
+
+          // EMA26 line
+          if (ema26.length === price.length) {
+            const ema26X = legendX + legendSpacing * 2;
+            ctx.strokeStyle = "#ef4444";
+            ctx.beginPath();
+            ctx.moveTo(ema26X, legendY);
+            ctx.lineTo(ema26X + 20, legendY);
+            ctx.stroke();
+            ctx.fillStyle = "#2c3e50";
+            ctx.fillText("EMA26", ema26X + 25, legendY);
+          }
+
+          // Buy signal marker
+          const buyX = legendX + legendSpacing * 3;
+          ctx.save();
+          ctx.translate(buyX + 10, legendY);
+          ctx.beginPath();
+          ctx.moveTo(0, -6);
+          ctx.lineTo(-5, 3);
+          ctx.lineTo(5, 3);
+          ctx.closePath();
+          ctx.fillStyle = "#10b981";
+          ctx.fill();
+          ctx.restore();
+          ctx.fillStyle = "#2c3e50";
+          ctx.fillText("Buy Signal", buyX + 25, legendY);
+
+          // Sell signal marker
+          const sellX = legendX + legendSpacing * 4;
+          ctx.save();
+          ctx.translate(sellX + 10, legendY);
+          ctx.beginPath();
+          ctx.moveTo(0, 6);
+          ctx.lineTo(-5, -3);
+          ctx.lineTo(5, -3);
+          ctx.closePath();
+          ctx.fillStyle = "#ef4444";
+          ctx.fill();
+          ctx.restore();
+          ctx.fillStyle = "#2c3e50";
+          ctx.fillText("Sell Signal", sellX + 25, legendY);
+
           // Draw markers and capture for tooltip
           const points = [];
           for (const s of signals) {
             if (s.index < start || s.index >= n) continue;
             const x = xAt(s.index);
             const y = yAt(price[s.index]);
-            ctx.beginPath();
-            ctx.fillStyle = s.type === "BUY" ? "#0ea5e9" : "#f59e0b";
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
-            ctx.fill();
+
+            // Draw larger, more visible markers with triangular shape
+            ctx.save();
+            ctx.translate(x, y);
+
+            if (s.type === "BUY") {
+              // Upward triangle for BUY signals
+              ctx.beginPath();
+              ctx.moveTo(0, -10); // top point
+              ctx.lineTo(-8, 5); // bottom left
+              ctx.lineTo(8, 5); // bottom right
+              ctx.closePath();
+              ctx.fillStyle = "#10b981"; // green
+              ctx.fill();
+              ctx.strokeStyle = "#059669"; // darker green border
+              ctx.lineWidth = 2;
+              ctx.stroke();
+
+              // Add "BUY" label below
+              ctx.fillStyle = "#10b981";
+              ctx.font = "bold 10px Arial";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "top";
+              ctx.fillText("BUY", 0, 8);
+            } else {
+              // Downward triangle for SELL signals
+              ctx.beginPath();
+              ctx.moveTo(0, 10); // bottom point
+              ctx.lineTo(-8, -5); // top left
+              ctx.lineTo(8, -5); // top right
+              ctx.closePath();
+              ctx.fillStyle = "#ef4444"; // red
+              ctx.fill();
+              ctx.strokeStyle = "#dc2626"; // darker red border
+              ctx.lineWidth = 2;
+              ctx.stroke();
+
+              // Add "SELL" label above
+              ctx.fillStyle = "#ef4444";
+              ctx.font = "bold 10px Arial";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "bottom";
+              ctx.fillText("SELL", 0, -8);
+            }
+
+            ctx.restore();
+
             points.push({
               x,
               y,
-              label: `${s.type} • score ${
-                Math.round((s.score || 0) * 100) / 100
-              }\n${s.reason || ""}`,
+              label: `${s.type} SIGNAL\nScore: ${Math.round(
+                (s.score || 0) * 100
+              )}%\n${s.reason || ""}`,
             });
           }
 
@@ -991,6 +1383,7 @@
       function mapMarketAnalysisToDashboardPayload(m) {
         return {
           timestamp: m.timestamp,
+          ohlcv: m.recentData || [],
           data: {
             indicator: m.analysis?.indicator || {},
             pattern: m.analysis?.pattern || {},

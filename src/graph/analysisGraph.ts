@@ -210,27 +210,166 @@ function computeSignals(
   const patternByIndex = new Map<number, { pattern: string; strength: number }>();
   for (const ev of patternEvents) patternByIndex.set(ev.index, { pattern: ev.pattern, strength: ev.strength });
 
+  // Calculate support and resistance levels from ALL candles for better accuracy
+  const allHighs = candles.map(c => c.high);
+  const allLows = candles.map(c => c.low);
+  const allCloses = candles.map(c => c.close);
+  
+  // Find recent extremes (last 30 candles or all if fewer)
+  const lookback = Math.min(30, n);
+  const recentHighs = allHighs.slice(-lookback);
+  const recentLows = allLows.slice(-lookback);
+  
+  const resistance = Math.max(...recentHighs);
+  const support = Math.min(...recentLows);
+  const priceRange = resistance - support;
+  const midPoint = (resistance + support) / 2;
+
+  // Track last signal to avoid duplicates
+  let lastSignalIndex = -5;
+  
+  console.log(`[Signal Debug] Computing signals for ${n} candles, support: ${support.toFixed(0)}, resistance: ${resistance.toFixed(0)}, range: ${priceRange.toFixed(0)}`);
+
   for (let i = 26; i < n; i++) {
+    // Skip if too close to last signal
+    if (i - lastSignalIndex < 3) continue;
+
     const time = candles[i].time;
+    const price = candles[i].close;
+    const high = candles[i].high;
+    const low = candles[i].low;
+    const open = candles[i].open;
     const r = rsiSeries[i];
-    const up = ema12[i] > ema26[i] * 1.001;
-    const down = ema12[i] < ema26[i] * 0.999;
+    
+    // Trend detection
+    const up = ema12[i] > ema26[i] * 1.0005;
+    const down = ema12[i] < ema26[i] * 0.9995;
+    const sideways = !up && !down;
+    
     const pat = patternByIndex.get(i) || patternByIndex.get(i - 1);
 
-    // BUY: Uptrend, RSI>55 and <70, bullish pattern (current or prev)
-    if (up && r > 55 && r < 70 && pat && pat.pattern === 'BullishEngulfing') {
-      const score = 0.5 + Math.min(0.5, pat.strength * 0.5);
-      signals.push({ index: i, time, type: 'BUY', score, reason: 'Uptrend + RSI>55 + Bullish Engulfing' });
+    // Calculate distance from support/resistance as percentage
+    const distanceFromSupport = ((price - support) / priceRange) * 100;
+    const distanceFromResistance = ((resistance - price) / priceRange) * 100;
+    
+    // Candle direction
+    const bullishCandle = candles[i].close > candles[i].open;
+    const bearishCandle = candles[i].close < candles[i].open;
+    
+    // Price momentum (comparing with 3 candles ago)
+    const prevPrice = i >= 3 ? candles[i - 3].close : price;
+    const momentum = ((price - prevPrice) / prevPrice) * 100;
+    
+    // Debug last candle
+    if (i === n - 1) {
+      console.log(`[Signal Debug] Last candle (${i}): price=${price.toFixed(0)}, RSI=${r.toFixed(1)}, trend=${up?'UP':down?'DOWN':'SIDEWAYS'}`);
+      console.log(`  distFromSupport=${distanceFromSupport.toFixed(1)}%, distFromResistance=${distanceFromResistance.toFixed(1)}%`);
+      console.log(`  momentum=${momentum.toFixed(2)}%, bullish=${bullishCandle}, bearish=${bearishCandle}`);
+    }
+
+    // === BUY SIGNALS ===
+    
+    // 1. Strong BUY: Price at/near support with oversold or neutral RSI
+    if (distanceFromSupport <= 30 && r < 52) {
+      const score = 0.7 + (50 - r) / 150 + (25 - distanceFromSupport) / 100;
+      signals.push({ index: i, time, type: 'BUY', score: Math.min(1, score), reason: `Support Zone ($${support.toFixed(0)}) + RSI ${r.toFixed(0)}` });
+      lastSignalIndex = i;
       continue;
     }
 
-    // SELL: Downtrend, RSI<45 and >30, bearish pattern
-    if (down && r < 45 && r > 30 && pat && pat.pattern === 'BearishEngulfing') {
-      const score = 0.5 + Math.min(0.5, pat.strength * 0.5);
-      signals.push({ index: i, time, type: 'SELL', score, reason: 'Downtrend + RSI<45 + Bearish Engulfing' });
+    // 2. BUY: Bullish momentum with favorable RSI
+    if (momentum > 0.05 && r > 40 && r < 70 && bullishCandle) {
+      const score = 0.6 + momentum / 5;
+      signals.push({ index: i, time, type: 'BUY', score: Math.min(1, score), reason: `Bullish Momentum +${momentum.toFixed(1)}%` });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 3. BUY: Uptrend continuation with bullish pattern
+    if (up && r > 45 && r < 70 && pat && pat.pattern === 'BullishEngulfing') {
+      const score = 0.7 + Math.min(0.25, pat.strength * 0.25);
+      signals.push({ index: i, time, type: 'BUY', score, reason: `Uptrend + ${pat.pattern}` });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 4. BUY: RSI oversold recovery
+    if (i > 0 && rsiSeries[i-1] < 35 && r >= 35 && r < 60) {
+      const score = 0.65;
+      signals.push({ index: i, time, type: 'BUY', score, reason: 'RSI Recovery from Oversold' });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 5. BUY: Price in lower 40% of range in sideways market
+    if (sideways && distanceFromSupport < 40 && bullishCandle && r < 60) {
+      const score = 0.5 + (40 - distanceFromSupport) / 100;
+      signals.push({ index: i, time, type: 'BUY', score: Math.min(0.75, score), reason: 'Range Bottom Buy' });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 6. BUY: EMA crossover bullish
+    if (i > 0 && ema12[i-1] <= ema26[i-1] && ema12[i] > ema26[i] && r < 70) {
+      const score = 0.72;
+      signals.push({ index: i, time, type: 'BUY', score, reason: 'EMA Bullish Crossover' });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // === SELL SIGNALS ===
+    
+    // 1. Strong SELL: Price at/near resistance with overbought or high RSI
+    if (distanceFromResistance <= 30 && r > 48) {
+      const score = 0.7 + (r - 50) / 150 + (25 - distanceFromResistance) / 100;
+      signals.push({ index: i, time, type: 'SELL', score: Math.min(1, score), reason: `Resistance Zone ($${resistance.toFixed(0)}) + RSI ${r.toFixed(0)}` });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 2. SELL: Bearish momentum with unfavorable RSI
+    if (momentum < -0.05 && r < 60 && r > 30 && bearishCandle) {
+      const score = 0.6 + Math.abs(momentum) / 5;
+      signals.push({ index: i, time, type: 'SELL', score: Math.min(1, score), reason: `Bearish Momentum ${momentum.toFixed(1)}%` });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 3. SELL: Downtrend continuation with bearish pattern
+    if (down && r < 55 && r > 30 && pat && pat.pattern === 'BearishEngulfing') {
+      const score = 0.7 + Math.min(0.25, pat.strength * 0.25);
+      signals.push({ index: i, time, type: 'SELL', score, reason: `Downtrend + ${pat.pattern}` });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 4. SELL: RSI overbought reversal
+    if (i > 0 && rsiSeries[i-1] > 65 && r <= 65 && r > 40) {
+      const score = 0.65;
+      signals.push({ index: i, time, type: 'SELL', score, reason: 'RSI Reversal from Overbought' });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 5. SELL: Price in upper 40% of range in sideways market
+    if (sideways && distanceFromResistance < 40 && bearishCandle && r > 40) {
+      const score = 0.5 + (40 - distanceFromResistance) / 100;
+      signals.push({ index: i, time, type: 'SELL', score: Math.min(0.75, score), reason: 'Range Top Sell' });
+      lastSignalIndex = i;
+      continue;
+    }
+
+    // 6. SELL: EMA crossover bearish
+    if (i > 0 && ema12[i-1] >= ema26[i-1] && ema12[i] < ema26[i] && r > 30) {
+      const score = 0.72;
+      signals.push({ index: i, time, type: 'SELL', score, reason: 'EMA Bearish Crossover' });
+      lastSignalIndex = i;
       continue;
     }
   }
+  
+  console.log(`[Signal Debug] Generated ${signals.length} total signals (${signals.filter(s=>s.type==='BUY').length} BUY, ${signals.filter(s=>s.type==='SELL').length} SELL)`);
+  
   return signals;
 }
 

@@ -22,6 +22,10 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// In-memory cache for analysis results
+const analysisCache = new Map<string, { data: any; timestamp: number }>();
+const ANALYSIS_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -224,6 +228,76 @@ app.get('/api/market/data/:symbol', async (req, res) => {
 app.get('/api/market/analysis/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
     const { interval = 'daily', periods = '100' } = req.query;
     
     const periodsNum = parseInt(periods as string, 10);
@@ -231,49 +305,1191 @@ app.get('/api/market/analysis/:symbol', async (req, res) => {
       return res.status(400).json({ error: 'Periods must be a positive number' });
     }
 
-    const analysis = await runRealTimeAnalysis(symbol, interval as any, periodsNum);
-    res.json(analysis);
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ 
-      error: 'Failed to run market analysis', 
+      error: 'Failed to fetch market data', 
       details: errorMessage,
       symbol: req.params.symbol 
     });
   }
 });
 
-app.get('/api/market/search', async (req, res) => {
+app.get('/api/market/analysis/:symbol', async (req, res) => {
   try {
-    const { keywords } = req.query;
-    if (!keywords || typeof keywords !== 'string') {
-      return res.status(400).json({ error: 'Keywords parameter is required' });
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
     }
 
-    const results = await searchMarketSymbols(keywords);
-    res.json({ keywords, results, timestamp: new Date().toISOString() });
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+  const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ 
-      error: 'Failed to fetch OHLCV data', 
+      error: 'Failed to fetch market data', 
       details: errorMessage,
-      route: '/api/market/search'
+      symbol: req.params.symbol 
     });
   }
 });
 
-// Start server
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+  const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+  const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+  const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+  const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
+// OHLCV Market Data API endpoints
+app.get('/api/market/data/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { interval = 'daily', periods = '100' } = req.query;
+    
+    const periodsNum = parseInt(periods as string, 10);
+    if (isNaN(periodsNum) || periodsNum <= 0) {
+      return res.status(400).json({ error: 'Periods must be a positive number' });
+    }
+
+    const data = await getMarketData(symbol, interval as any, periodsNum);
+    res.json(data);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch market data', 
+      details: errorMessage,
+      symbol: req.params.symbol 
+    });
+  }
+});
+
+app.get('/api/market/analysis/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    if (!PRESENTATION_ASSETS.includes(symbol as any)) {
+      return res.status(404).json({ error: "Asset not supported" });
+    }
+
+    const useCache = req.query.useCache !== "false";
+    const interval = (req.query.interval as any) || "15min";
+    const periods = parseInt((req.query.periods as string) || "120");
+    const cacheKey = `analysis:${symbol}:${interval}:${periods}`;
+
+    if (useCache && analysisCache.has(cacheKey)) {
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        console.log(`[Server Cache] HIT for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+    console.log(`[Server Cache] MISS for ${cacheKey}`);
+
+    const result = await runRealTimeAnalysis(symbol, interval, periods);
+
+    analysisCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    res.json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in /api/market/analysis/${req.params.symbol}:`, error);
+    res
+      .status(500)
+      .json({ error: "Failed to get market analysis", details: errorMessage });
+  }
+});
+
+// This endpoint is now deprecated in favor of the one above, but kept for compatibility
+app.get("/api/presentation/analysis", async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      runRealTimeAnalysis('BTC', interval, periods),
+      runRealTimeAnalysis('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation analysis', details: errorMessage });
+  }
+});
+
+app.get('/api/presentation/data', async (req, res) => {
+  try {
+    const interval = 'daily' as const;
+    const periods = 120;
+    const [btc, eth] = await Promise.all([
+      getMarketData('BTC', interval, periods),
+      getMarketData('ETH', interval, periods),
+    ]);
+    res.json({ assets: { BTC: btc, ETH: eth }, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to fetch presentation data', details: errorMessage });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 QuantLLM Web Server running on http://localhost:${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api/analysis`);
-  console.log(`🤖 Individual agents: http://localhost:${PORT}/api/agents/{indicator|pattern|trend|risk}`);
-  console.log(`🎯 Presentation: http://localhost:${PORT}/api/presentation/analysis`);
-  
-  // Generate initial analysis
-  generateAnalysis().then(() => {
-    console.log('✅ Initial analysis ready');
-  }).catch(err => {
-    console.error('❌ Failed to generate initial analysis:', err.message);
-  });
+  console.log(`Server is running on port ${PORT}`);
 });
