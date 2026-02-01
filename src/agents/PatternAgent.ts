@@ -12,6 +12,7 @@
  */
 
 import { AgentContext, PatternOut, Candle } from '../types.js';
+import { GeminiService } from '../gemini.js';
 
 /**
  * PatternAgent: Basic candlestick patterns (2-candle engulfing + doji)
@@ -41,7 +42,20 @@ export async function PatternAgent(ctx: AgentContext): Promise<PatternOut> {
 
   // Check for Doji pattern
   const isDoji = isTinyBody(lastBody, last.close);
-  if (isDoji) return { pattern: 'Doji', strength: 0.4 };
+  if (isDoji) {
+    const out: PatternOut = { pattern: 'Doji', strength: 0.4 };
+    if (process.env.PATTERN_AI === 'true' && process.env.GEMINI_API_KEY) {
+      try {
+        const gemini = new GeminiService();
+        const summary = await gemini.generateResponse(
+          'Explain what a Doji means succinctly for a trader (1 sentence).',
+          {}
+        );
+        out.aiSummary = summary.slice(0, 200);
+      } catch {}
+    }
+    return out;
+  }
 
   // Determine candle colors (bullish/bearish)
   const lastBull = last.close > last.open;
@@ -58,13 +72,35 @@ export async function PatternAgent(ctx: AgentContext): Promise<PatternOut> {
   // Bullish Engulfing: bullish candle engulfs previous bearish candle
   if (lastBull && prevBear && engulfs) {
     const strength = Math.min(1, lastBody / (prevBody + 1e-9));
-    return { pattern: 'BullishEngulfing', strength };
+    const out: PatternOut = { pattern: 'BullishEngulfing', strength };
+    if (process.env.PATTERN_AI === 'true' && process.env.GEMINI_API_KEY) {
+      try {
+        const gemini = new GeminiService();
+        const summary = await gemini.generateResponse(
+          'Explain the trade significance of a bullish engulfing pattern succinctly (1 sentence).',
+          {}
+        );
+        out.aiSummary = summary.slice(0, 200);
+      } catch {}
+    }
+    return out;
   }
 
   // Bearish Engulfing: bearish candle engulfs previous bullish candle
   if (lastBear && prevBull && engulfs) {
     const strength = Math.min(1, lastBody / (prevBody + 1e-9));
-    return { pattern: 'BearishEngulfing', strength };
+    const out: PatternOut = { pattern: 'BearishEngulfing', strength };
+    if (process.env.PATTERN_AI === 'true' && process.env.GEMINI_API_KEY) {
+      try {
+        const gemini = new GeminiService();
+        const summary = await gemini.generateResponse(
+          'Explain the trade significance of a bearish engulfing pattern succinctly (1 sentence).',
+          {}
+        );
+        out.aiSummary = summary.slice(0, 200);
+      } catch {}
+    }
+    return out;
   }
 
   // No significant pattern detected

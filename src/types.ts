@@ -19,6 +19,7 @@ export type IndicatorOut = {
   overbought: boolean;
   oversold: boolean;
   confidence: number; // 0..1
+  aiSummary?: string; // optional LLM commentary
 };
 
 export type PatternOut = {
@@ -28,6 +29,7 @@ export type PatternOut = {
     | 'Doji'
     | 'None';
   strength: number; // 0..1
+  aiSummary?: string; // optional LLM commentary
 };
 
 export type TrendOut = {
@@ -36,6 +38,7 @@ export type TrendOut = {
   emaSlow: number;
   slope: number;        // simple slope of close
   strength: number;     // 0..1
+  aiSummary?: string;   // optional LLM commentary
 };
 
 export type RiskOut = {

@@ -12,6 +12,7 @@
  */
 
 import { AgentContext, TrendOut, Candle } from '../types.js';
+import { GeminiService } from '../gemini.js';
 import { ema, simpleSlope } from '../utils/technical.js';
 
 /**
@@ -49,13 +50,20 @@ export async function TrendAgent(ctx: AgentContext): Promise<TrendOut> {
   const emaDivergence = Math.abs((emaFast - emaSlow) / Math.max(emaSlow, 1e-9));
   const strength = Math.min(1, emaDivergence * 10);
 
-  return { 
-    trend, 
-    emaFast, 
-    emaSlow, 
-    slope: slopeVal, 
-    strength 
-  };
+  const out: TrendOut = { trend, emaFast, emaSlow, slope: slopeVal, strength };
+
+  if (process.env.TREND_AI === 'true' && process.env.GEMINI_API_KEY) {
+    try {
+      const gemini = new GeminiService();
+      const summary = await gemini.generateResponse(
+        'Explain what this trend context means briefly (1-2 sentences).',
+        { recentAnalysis: { data: { trend: out } } }
+      );
+      out.aiSummary = summary.slice(0, 250);
+    } catch {}
+  }
+
+  return out;
 }
 
 /**

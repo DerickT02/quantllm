@@ -1,0 +1,45 @@
+
+> quantllm@1.0.0 web
+> tsx server.ts
+
+✅ Alpha Vantage API key found - using real market data
+Server is running on port 3000
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] MISS for ohlcv:BTC-5min-compact-USD
+Attempting to fetch BTC from Polygon.io...
+[DEBUG] Requesting Polygon data from 2025-10-12 to 2025-10-19 (today should be 2025-10-19)
+[POLYGON] Requesting: https://api.polygon.io/v2/aggs/ticker/X:BTCUSD/range/5/minute/2025-10-12/2025-10-19
+[POLYGON] Date range: 2025-10-12 to 2025-10-19 (today should be around 2025-10-19)
+[POLYGON] Received 1000 candles. Data range: 2025-10-12T00:00:00.000Z to 2025-10-15T11:15:00.000Z
+⚠️  Polygon.io data for BTC is STALE (latest: 2025-10-15T11:15:00.000Z, today: 2025-10-19T03:36:26.948Z). Trying CoinGecko instead...
+[CoinGecko] Fetched 48 candles for BTC (1 days)
+[CoinGecko] Data range: 2025-10-18T04:00:00.000Z to 2025-10-19T03:30:00.000Z
+✅ CoinGecko provided fresh data: 2025-10-18T04:00:00.000Z to 2025-10-19T03:30:00.000Z
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD
+[Server Cache] MISS for analysis:BTC:5min:48
+[Cache] HIT for ohlcv:BTC-5min-compact-USD

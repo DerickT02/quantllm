@@ -12,6 +12,7 @@
  */
 
 import { AgentContext, IndicatorOut } from '../types.js';
+import { GeminiService } from '../gemini.js';
 import { rsi } from '../utils/technical.js';
 
 /**
@@ -41,13 +42,21 @@ export async function IndicatorAgent(ctx: AgentContext): Promise<IndicatorOut> {
   // Confidence grows as RSI departs from 50 (neutral)
   const confidence = Math.min(1, Math.abs(rsiVal - 50) / 30);
 
-  return { 
-    rsi: rsiVal, 
-    overbought, 
-    oversold, 
-    regime, 
-    confidence 
-  };
+  const out: IndicatorOut = { rsi: rsiVal, overbought, oversold, regime, confidence };
+
+  // Optional LLM commentary
+  if (process.env.INDICATOR_AI === 'true' && process.env.GEMINI_API_KEY) {
+    try {
+      const gemini = new GeminiService();
+      const summary = await gemini.generateResponse(
+        'Summarize RSI/regime context briefly for a trader (1-2 sentences, no financial advice).',
+        { recentAnalysis: { data: { indicator: out } } }
+      );
+      out.aiSummary = summary.slice(0, 280);
+    } catch {}
+  }
+
+  return out;
 }
 
 /**
